@@ -370,17 +370,67 @@
         crossBar.castShadow = true;
         netGroup.add(crossBar);
 
-        // Netting Back
-        const netGeo = new THREE.BoxGeometry(goalW, 30, 15);
-        const netMaterial = new THREE.MeshBasicMaterial({ 
-            color: 0xffffff, 
-            transparent: true, 
-            opacity: 0.25, 
-            wireframe: true 
+        // --- REALISTIC GOAL NET ---
+        // Create a custom diamond pattern texture using a temporary canvas
+        const netCanvas = document.createElement('canvas');
+        netCanvas.width = 64;
+        netCanvas.height = 64;
+        const netCtx = netCanvas.getContext('2d');
+        netCtx.clearRect(0, 0, 64, 64);
+        netCtx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+        netCtx.lineWidth = 3;
+        netCtx.beginPath();
+        netCtx.moveTo(0, 32); netCtx.lineTo(32, 0); netCtx.lineTo(64, 32); netCtx.lineTo(32, 64); netCtx.closePath();
+        netCtx.stroke();
+        
+        const netTex = new THREE.CanvasTexture(netCanvas);
+        netTex.wrapS = THREE.RepeatWrapping;
+        netTex.wrapT = THREE.RepeatWrapping;
+
+        const netMaterial = new THREE.MeshBasicMaterial({
+            map: netTex,
+            transparent: true,
+            side: THREE.DoubleSide,
+            depthWrite: false
         });
-        const netting = new THREE.Mesh(netGeo, netMaterial);
-        netting.position.set(0, 15, get3DZ(-7.5));
-        netGroup.add(netting);
+
+        // Back Net
+        const backNetGeo = new THREE.PlaneGeometry(goalW, 30);
+        const backTex = netTex.clone();
+        backTex.repeat.set(12, 3); // Tile the texture
+        const backMat = netMaterial.clone();
+        backMat.map = backTex;
+        const backNet = new THREE.Mesh(backNetGeo, backMat);
+        backNet.position.set(0, 15, get3DZ(-15));
+        netGroup.add(backNet);
+
+        // Top Net
+        const topNetGeo = new THREE.PlaneGeometry(goalW, 15);
+        const topTex = netTex.clone();
+        topTex.repeat.set(12, 1.5);
+        const topMat = netMaterial.clone();
+        topMat.map = topTex;
+        const topNet = new THREE.Mesh(topNetGeo, topMat);
+        topNet.rotation.x = -Math.PI / 2;
+        topNet.position.set(0, 30, get3DZ(-7.5));
+        netGroup.add(topNet);
+
+        // Side Nets
+        const sideNetGeo = new THREE.PlaneGeometry(15, 30);
+        const sideTex = netTex.clone();
+        sideTex.repeat.set(1.5, 3);
+        const sideMat = netMaterial.clone();
+        sideMat.map = sideTex;
+        
+        const leftNet = new THREE.Mesh(sideNetGeo, sideMat);
+        leftNet.rotation.y = Math.PI / 2;
+        leftNet.position.set(-goalW/2, 15, get3DZ(-7.5));
+        netGroup.add(leftNet);
+
+        const rightNet = new THREE.Mesh(sideNetGeo, sideMat);
+        rightNet.rotation.y = -Math.PI / 2;
+        rightNet.position.set(goalW/2, 15, get3DZ(-7.5));
+        netGroup.add(rightNet);
 
         fieldGroup.add(netGroup);
 
@@ -476,7 +526,7 @@
             this.aiType = aiType; 
             this.vx = 0;
             this.vy = 0;
-            this.speed = isAI ? 0.7 : 0.9; // Lowered base speeds
+            this.speed = 0.7; // Player and AI now have the exact same base speed
             this.friction = 0.8;
             this.isGoalie = false;
             this.wanderAngle = Math.random() * Math.PI * 2; 
@@ -497,7 +547,6 @@
             const shortsMat = new THREE.MeshStandardMaterial({ color: this.team.color2, roughness: 0.7 });
             const shorts = new THREE.Mesh(shortsGeo, shortsMat);
             shorts.position.y = 4;
-            shorts.castShadow = true;
             group.add(shorts);
 
             // Shirt (Upper body - upgraded to Standard Material)
@@ -505,7 +554,6 @@
             const shirtMat = new THREE.MeshStandardMaterial({ color: this.team.color1, roughness: 0.7 });
             const shirt = new THREE.Mesh(shirtGeo, shirtMat);
             shirt.position.y = 13;
-            shirt.castShadow = true;
             group.add(shirt);
 
             // Head 
@@ -513,7 +561,6 @@
             const headMat = new THREE.MeshStandardMaterial({ color: 0xFFC1CC, roughness: 0.5 });
             const head = new THREE.Mesh(headGeo, headMat);
             head.position.y = 22;
-            head.castShadow = true;
             group.add(head);
 
             // Player Marker
@@ -546,7 +593,15 @@
             if (this.y < this.size/2) this.y = this.size/2;
             if (this.y > V_HEIGHT - this.size/2) this.y = V_HEIGHT - this.size/2;
 
-            if (this.isAI && !this.isGoalie && gameState === 'playing') {
+            // Prevent getting stuck inside/behind the physical goal net
+            const goalLeft = V_WIDTH/2 - 60;
+            const goalRight = V_WIDTH/2 + 60;
+            if (this.y < 20 && this.x > goalLeft && this.x < goalRight && !this.isGoalie) {
+                this.y = 20; 
+            }
+
+            // Removed the !this.isGoalie check so the Goalie AI can actually run!
+            if (this.isAI && gameState === 'playing') {
                 this.runAI();
             } else if (!this.isAI && gameState === 'playing') {
                 this.handleInput();
@@ -649,8 +704,16 @@
             } else {
                 if (this.y < ball.y - 5) {
                     let sideOffset = this.x < ball.x ? -35 : 35; 
-                    targetX = (ball.x + sideOffset) - this.x;
-                    targetY = (ball.y + 25) - this.y;
+                    let desiredX = ball.x + sideOffset;
+                    let desiredY = ball.y + 25;
+                    
+                    // Prevent AI from getting "lost" trying to path out of bounds
+                    if (desiredX < 20) desiredX = 20;
+                    if (desiredX > V_WIDTH - 20) desiredX = V_WIDTH - 20;
+                    if (desiredY > V_HEIGHT - 20) desiredY = V_HEIGHT - 20;
+                    
+                    targetX = desiredX - this.x;
+                    targetY = desiredY - this.y;
                 } else {
                     targetX = dx;
                     targetY = dy;
@@ -710,7 +773,6 @@
             const bodyMat = new THREE.MeshLambertMaterial({ color: 0xFFA500 });
             const body = new THREE.Mesh(bodyGeo, bodyMat);
             body.position.y = 8;
-            body.castShadow = true;
             group.add(body);
 
             // Gloves
@@ -719,12 +781,10 @@
             
             const leftGlove = new THREE.Mesh(gloveGeo, gloveMat);
             leftGlove.position.set(-10, 8, 2);
-            leftGlove.castShadow = true;
             group.add(leftGlove);
 
             const rightGlove = new THREE.Mesh(gloveGeo, gloveMat);
             rightGlove.position.set(10, 8, 2);
-            rightGlove.castShadow = true;
             group.add(rightGlove);
 
             return group;
