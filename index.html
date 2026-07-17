@@ -769,9 +769,13 @@
             const head = new THREE.Mesh(new THREE.BoxGeometry(8, 8, 8), new THREE.MeshStandardMaterial({ color: 0xFFC1CC, roughness: 0.5 }));
             head.position.y = 22; group.add(head);
 
+            // Yellow indicator for human player, Cyan indicator for teammates
             if (!this.isAI) {
                 const marker = new THREE.Mesh(new THREE.ConeGeometry(4, 8, 4), new THREE.MeshBasicMaterial({ color: 0xffff00 }));
                 marker.position.y = 35; marker.rotation.x = Math.PI; group.add(marker);
+            } else if (playerTeam && this.team.id === playerTeam.id) {
+                const marker = new THREE.Mesh(new THREE.ConeGeometry(3, 6, 4), new THREE.MeshBasicMaterial({ color: 0x00ffff }));
+                marker.position.y = 32; marker.rotation.x = Math.PI; group.add(marker);
             }
             return group;
         }
@@ -828,26 +832,96 @@
             if (!ball) return;
             const goalX = V_WIDTH / 2; const goalY = 20;
 
-            // AI Teammate Support Logic
+            // AI Teammate Support & Getting Open Logic
             if (ball.possessedBy && ball.possessedBy.team === this.team && ball.possessedBy !== this) {
-                let dxToGoal = goalX - this.x; let dyToGoal = goalY - this.y;
-                let dist = Math.sqrt(dxToGoal*dxToGoal + dyToGoal*dyToGoal);
+                let targetX = goalX; 
+                let targetY = ball.possessedBy.y - 80; // Push upfield ahead of the ball
+                
+                // Spread out wide
+                let sideOffset = this.x < ball.possessedBy.x ? -60 : 60;
+                targetX = ball.possessedBy.x + sideOffset;
+
+                // Keep within bounds
+                if (targetX < 20) targetX = 20; if (targetX > V_WIDTH - 20) targetX = V_WIDTH - 20;
+                if (targetY < 40) targetY = 40; if (targetY > V_HEIGHT - 20) targetY = V_HEIGHT - 20;
+
+                let dxToSpace = targetX - this.x; let dyToSpace = targetY - this.y;
+                let dist = Math.sqrt(dxToSpace*dxToSpace + dyToSpace*dyToSpace);
+
+                // Evade nearby defenders to "get open"
+                let evadeX = 0; let evadeY = 0;
+                for (let opp of entities) {
+                    if (opp.team !== this.team && !opp.isGoalie) {
+                        let dX = this.x - opp.x; let dY = this.y - opp.y;
+                        let oppDist = Math.sqrt(dX*dX + dY*dY);
+                        if (oppDist < 50 && oppDist > 0) {
+                            evadeX += dX / oppDist; evadeY += dY / oppDist;
+                        }
+                    }
+                }
+
+                let moveX = 0; let moveY = 0;
                 if (dist > 0) {
-                    this.vx += (dxToGoal/dist) * this.speed * 0.2;
-                    this.vy += (dyToGoal/dist) * this.speed * 0.2;
+                    moveX = (dxToSpace/dist) + (evadeX * 1.5);
+                    moveY = (dyToSpace/dist) + (evadeY * 1.5);
+                }
+
+                let moveDist = Math.sqrt(moveX*moveX + moveY*moveY);
+                if (moveDist > 0) {
+                    this.vx += (moveX/moveDist) * this.speed * 0.25;
+                    this.vy += (moveY/moveDist) * this.speed * 0.25;
                 }
                 return;
             }
 
+            // Dribbling, Shooting, and Passing Logic
             if (ball.possessedBy === this) {
                 let dxToGoal = goalX - this.x; let dyToGoal = goalY - this.y;
                 let distToGoal = Math.sqrt(dxToGoal*dxToGoal + dyToGoal*dyToGoal);
                 
-                if (distToGoal < 100) {
+                // Shoot if close to goal
+                if (distToGoal < 120) {
                     this.facingAngle = Math.atan2(dyToGoal, dxToGoal);
                     shootBall(this);
                     return;
                 }
+                
+                // Look for an open pass (Check periodically to avoid robotic instant-passing)
+                if (Math.random() < 0.1) {
+                    let bestTarget = null;
+                    let bestScore = -999;
+
+                    for (let e of entities) {
+                        if (e !== this && e.team === this.team && !e.isGoalie) {
+                            let eDistToGoal = Math.sqrt((goalX - e.x)**2 + (goalY - e.y)**2);
+                            // Pass forward or sideways, not backwards (unless very blocked, but let's keep it simple)
+                            if (eDistToGoal < distToGoal + 10) { 
+                                let laneOpen = true;
+                                for (let opp of entities) {
+                                    if (opp.team !== this.team && !opp.isGoalie) {
+                                        let distToLine = pointToLineDistance(opp.x, opp.y, this.x, this.y, e.x, e.y);
+                                        // If an opponent is within 25 units of the pass trajectory, the lane is blocked
+                                        if (distToLine < 25) { laneOpen = false; break; }
+                                    }
+                                }
+                                if (laneOpen) {
+                                    // Heavily prefer passing to the human player!
+                                    let score = -eDistToGoal + (!e.isAI ? 200 : 0);
+                                    if (score > bestScore) { bestScore = score; bestTarget = e; }
+                                }
+                            }
+                        }
+                    }
+
+                    if (bestTarget) {
+                        let dx = bestTarget.x - this.x; let dy = bestTarget.y - this.y;
+                        this.facingAngle = Math.atan2(dy, dx);
+                        passBall(this);
+                        return;
+                    }
+                }
+
+                // Drive towards the goal if no pass is open
                 if (distToGoal > 0) {
                     this.vx += (dxToGoal / distToGoal) * this.speed * 0.35;
                     this.vy += (dyToGoal / distToGoal) * this.speed * 0.35;
@@ -865,14 +939,25 @@
 
             if (this.aiType === 'aggressive') { targetX = dx; targetY = dy; } 
             else if (this.aiType === 'camper') {
-                if (distToBall < 150) { targetX = dx; targetY = dy; } 
-                else { targetX = ball.x - this.x; targetY = (V_HEIGHT * 0.65) - this.y; }
+                // Move the "camper" up to midfield so they don't get stuck in the back
+                if (distToBall < 180 || ball.y > this.y) { targetX = dx; targetY = dy; } 
+                else { targetX = ball.x - this.x; targetY = (V_HEIGHT * 0.4) - this.y; }
             } else {
+                // Tactical (Default)
                 if (this.y < ball.y - 5 && ball.y < V_HEIGHT - 35) {
                     let sideOffset = this.x < ball.x ? -35 : 35; 
-                    let desiredX = ball.x + sideOffset; let desiredY = ball.y + 25;
+                    let desiredX = ball.x + sideOffset; 
+                    let desiredY = ball.y + 25;
+                    
+                    // If the ball is pinned against the back wall, swoop in from the side instead of going behind
+                    if (ball.y > V_HEIGHT - 30) {
+                        desiredY = ball.y; 
+                        desiredX = ball.x + (this.x < ball.x ? -25 : 25);
+                    }
+
                     if (desiredX < 20) desiredX = 20; if (desiredX > V_WIDTH - 20) desiredX = V_WIDTH - 20;
                     if (desiredY > V_HEIGHT - 20) desiredY = V_HEIGHT - 20;
+                    
                     targetX = desiredX - this.x; targetY = desiredY - this.y;
                 } else { targetX = dx; targetY = dy; }
             }
@@ -989,13 +1074,78 @@
         }
     }
 
-    function shootBall(entity) {
+    // --- PHYSICS HELPERS ---
+    
+    // Calculates distance from a point (px,py) to a line segment (x1,y1) -> (x2,y2)
+    function pointToLineDistance(px, py, x1, y1, x2, y2) {
+        let A = px - x1; let B = py - y1; let C = x2 - x1; let D = y2 - y1;
+        let dot = A * C + B * D; let len_sq = C * C + D * D; let param = -1;
+        if (len_sq !== 0) param = dot / len_sq;
+        let xx, yy;
+        if (param < 0) { xx = x1; yy = y1; } else if (param > 1) { xx = x2; yy = y2; } else { xx = x1 + param * C; yy = y1 + param * D; }
+        let dx = px - xx; let dy = py - yy;
+        return Math.sqrt(dx * dx + dy * dy);
+    }
+
+    function passBall(entity) {
         if (!ball || ball.possessedBy !== entity) return;
         ball.possessedBy = null; ball.possessionCooldown = 20; 
-        const shotPower = 8.5; 
-        ball.vx = Math.cos(entity.facingAngle) * shotPower + entity.vx * 0.5;
-        ball.vy = Math.sin(entity.facingAngle) * shotPower + entity.vy * 0.5;
+        const passPower = 6.5; // Passes are slightly softer than shots
+        ball.vx = Math.cos(entity.facingAngle) * passPower + entity.vx * 0.5;
+        ball.vy = Math.sin(entity.facingAngle) * passPower + entity.vy * 0.5;
         audio.playShoot();
+    }
+
+    function shootBall(entity) {
+        if (!ball || ball.possessedBy !== entity) return;
+
+        // Try to find a teammate in the general direction of facingAngle
+        let bestTeammate = null;
+        let maxDot = 0.707; // Cosine of 45 degrees (total 90-degree target angle cone)
+        const facingX = Math.cos(entity.facingAngle);
+        const facingY = Math.sin(entity.facingAngle);
+
+        for (let e of entities) {
+            if (e !== entity && e.team.id === entity.team.id && !e.isGoalie) {
+                let dx = e.x - entity.x;
+                let dy = e.y - entity.y;
+                let dist = Math.sqrt(dx*dx + dy*dy);
+                if (dist > 0 && dist < 250) {
+                    let dot = (dx * facingX + dy * facingY) / dist; // Normalized dot product
+                    if (dot > maxDot) {
+                        maxDot = dot;
+                        bestTeammate = e;
+                    }
+                }
+            }
+        }
+
+        ball.possessedBy = null;
+        ball.possessionCooldown = 20;
+
+        if (bestTeammate) {
+            // Lead pass predicting teammate momentum (15 frames prediction)
+            const leadFactor = 15;
+            const targetX = bestTeammate.x + bestTeammate.vx * leadFactor;
+            const targetY = bestTeammate.y + bestTeammate.vy * leadFactor;
+
+            const dx = targetX - entity.x;
+            const dy = targetY - entity.y;
+            const dist = Math.sqrt(dx*dx + dy*dy);
+            
+            const passAngle = Math.atan2(dy, dx);
+            const passPower = Math.min(8.5, Math.max(6.0, dist * 0.04)); 
+            
+            ball.vx = Math.cos(passAngle) * passPower + entity.vx * 0.3;
+            ball.vy = Math.sin(passAngle) * passPower + entity.vy * 0.3;
+            audio.playShoot();
+        } else {
+            // Trigger raw shot if no teammate is ahead/nearby in that direction
+            const shotPower = 8.5; 
+            ball.vx = Math.cos(entity.facingAngle) * shotPower + entity.vx * 0.5;
+            ball.vy = Math.sin(entity.facingAngle) * shotPower + entity.vy * 0.5;
+            audio.playShoot();
+        }
     }
 
     function resolveCollision(entity, ball) {
