@@ -317,6 +317,24 @@
         const lineMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0x444444, roughness: 0.5 });
         const lineOffset = 0.5;
 
+        // Outer Pitch Lines (Boundaries)
+        const topPitchLine = new THREE.Mesh(new THREE.BoxGeometry(V_WIDTH, 1, 3), lineMat);
+        topPitchLine.position.set(0, lineOffset, get3DZ(0));
+        fieldGroup.add(topPitchLine);
+
+        const bottomPitchLine = new THREE.Mesh(new THREE.BoxGeometry(V_WIDTH, 1, 3), lineMat);
+        bottomPitchLine.position.set(0, lineOffset, get3DZ(V_HEIGHT));
+        fieldGroup.add(bottomPitchLine);
+
+        const sidePitchLineGeo = new THREE.BoxGeometry(3, 1, V_HEIGHT);
+        const leftPitchLine = new THREE.Mesh(sidePitchLineGeo, lineMat);
+        leftPitchLine.position.set(-V_WIDTH/2, lineOffset, 0);
+        fieldGroup.add(leftPitchLine);
+
+        const rightPitchLine = new THREE.Mesh(sidePitchLineGeo, lineMat);
+        rightPitchLine.position.set(V_WIDTH/2, lineOffset, 0);
+        fieldGroup.add(rightPitchLine);
+
         // Center line
         const centerLineGeo = new THREE.BoxGeometry(V_WIDTH, 1, 3);
         const centerLine = new THREE.Mesh(centerLineGeo, lineMat);
@@ -508,6 +526,8 @@
     let safeTeams = [];
     let eliminatedTeams = [];
     let tournamentRound = 1;
+
+    let confettiParticles = [];
 
     // Input state
     const keys = { ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false, w: false, a: false, s: false, d: false, ' ': false };
@@ -790,6 +810,13 @@
             return group;
         }
 
+        updateMeshPosition() {
+            this.mesh.position.set(get3DX(this.x), 0, get3DZ(this.y));
+            // Goalie always stays squared up and faces down the field
+            this.mesh.rotation.y = 0;
+            this.facingAngle = Math.PI / 2;
+        }
+
         runAI() {
             if (!ball) return;
             
@@ -881,6 +908,11 @@
                         if (gameState === 'playing') {
                             handleGoal();
                         }
+                        // Keep ball inside the net visually during celebration
+                        if (this.y < -12) {
+                            this.y = -12;
+                            this.vy *= -0.5;
+                        }
                     } else {
                         this.y = this.radius; 
                         this.vy *= -0.8;
@@ -950,11 +982,70 @@
         }
     }
 
+    function spawnConfetti() {
+        const colors = [0xff0000, 0x00ff00, 0x0000ff, 0xffff00, 0xff00ff, 0x00ffff, 0xffffff];
+        const goalW = 120;
+        
+        for (let i = 0; i < 200; i++) {
+            const geo = new THREE.PlaneGeometry(2, 4);
+            const mat = new THREE.MeshBasicMaterial({ 
+                color: colors[Math.floor(Math.random() * colors.length)],
+                side: THREE.DoubleSide
+            });
+            const p = new THREE.Mesh(geo, mat);
+            
+            const startX = (Math.random() - 0.5) * goalW;
+            const startZ = get3DZ(-10) + (Math.random() - 0.5) * 20;
+            p.position.set(startX, 40 + Math.random() * 20, startZ);
+            
+            p.userData = {
+                vx: (Math.random() - 0.5) * 4,
+                vy: Math.random() * 6 + 2,
+                vz: (Math.random() - 0.5) * 4,
+                rx: (Math.random() - 0.5) * 0.5,
+                ry: (Math.random() - 0.5) * 0.5,
+                rz: (Math.random() - 0.5) * 0.5
+            };
+            
+            scene.add(p);
+            confettiParticles.push(p);
+        }
+    }
+
+    function updateConfetti() {
+        for (let i = confettiParticles.length - 1; i >= 0; i--) {
+            let p = confettiParticles[i];
+            let data = p.userData;
+            
+            data.vy -= 0.15; // gravity
+            data.vx *= 0.98; // air resistance
+            data.vz *= 0.98;
+            
+            p.position.x += data.vx;
+            p.position.y += data.vy;
+            p.position.z += data.vz;
+            
+            p.rotation.x += data.rx;
+            p.rotation.y += data.ry;
+            p.rotation.z += data.rz;
+            
+            if (p.position.y <= 1) {
+                p.position.y = 1;
+                data.vy *= -0.5;
+                data.vx *= 0.8;
+                data.vz *= 0.8;
+            }
+        }
+    }
+
     function clearEntities() {
         entities.forEach(e => scene.remove(e.mesh));
         if (ball) scene.remove(ball.mesh);
         entities = [];
         ball = null;
+
+        confettiParticles.forEach(p => scene.remove(p));
+        confettiParticles = [];
     }
 
     function startGame(selectedTeam) {
@@ -973,7 +1064,7 @@
         tournamentRound = 1;
         
         // Pan camera down dynamically at start (optional flair)
-        camera.position.set(0, 450, 400);
+        camera.position.set(0, 480, 450);
         
         startRound();
     }
@@ -1014,7 +1105,8 @@
             scoringTeam = activeTeams[Math.floor(Math.random() * activeTeams.length)];
         }
 
-        gameState = 'scored'; // Pause game physics
+        gameState = 'scored'; // Input and AI stop, but physics keep running
+        spawnConfetti();
         
         // Move team to safe list
         activeTeams = activeTeams.filter(t => t.id !== scoringTeam.id);
@@ -1073,7 +1165,7 @@
 
     // --- MAIN RENDER LOOP ---
     function gameLoop() {
-        if (gameState === 'playing') {
+        if (gameState === 'playing' || gameState === 'scored') {
             entities.forEach(e => e.update());
             if (ball) ball.update();
 
@@ -1112,11 +1204,17 @@
                     }
                 }
             }
+        }
 
-            // Slowly animate camera to final playing position
-            camera.position.y += (350 - camera.position.y) * 0.05;
-            camera.position.z += (300 - camera.position.z) * 0.05;
-            camera.lookAt(0, 0, -50);
+        if (confettiParticles.length > 0) {
+            updateConfetti();
+        }
+
+        if (gameState !== 'menu') {
+            // Slowly animate camera to final playing position (pulled back to see the bottom)
+            camera.position.y += (420 - camera.position.y) * 0.05;
+            camera.position.z += (380 - camera.position.z) * 0.05;
+            camera.lookAt(0, 0, 20);
         } else {
             // Static camera view for menu
             camera.position.set(0, 350, 300);
