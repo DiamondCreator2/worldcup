@@ -311,7 +311,8 @@
         @keyframes popIn { 0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; } 100% { transform: translate(-50%, -50%) scale(1); opacity: 1; } }
         @keyframes fadeOut { 0% { opacity: 1; transform: translate(-50%, -50%) scale(1); } 100% { opacity: 0; transform: translate(-50%, -50%) scale(1.1); } }
 
-        #announcement-main { font-size: 64px; font-weight: 900; margin: 0; text-transform: uppercase; color: #fff; line-height: 1.1; }
+        /* Added white-space: pre-line to support the multi-line Welcome Message */
+        #announcement-main { font-size: 64px; font-weight: 900; margin: 0; text-transform: uppercase; color: #fff; line-height: 1.1; white-space: pre-line; }
         #announcement-sub { font-size: 20px; color: #FFD700; margin-top: 10px; font-weight: 700; text-transform: uppercase; }
 
         /* Mobile Controls */
@@ -572,6 +573,8 @@
     function get3DX(logicalX) { return logicalX - (V_WIDTH / 2); }
     function get3DZ(logicalY) { return logicalY - (V_HEIGHT / 2); }
 
+    let adTexture = null; // Global texture for scrolling advertisements
+
     window.addEventListener('resize', () => {
         camera.aspect = container.clientWidth / container.clientHeight;
         camera.updateProjectionMatrix();
@@ -660,6 +663,43 @@
 
         fieldGroup.add(netGroup);
 
+        // --- MOVING ADVERTISEMENTS (LED HOARDINGS) ---
+        const adCanvas = document.createElement('canvas');
+        adCanvas.width = 1024; adCanvas.height = 128; // Made canvas taller for larger text
+        const adCtx = adCanvas.getContext('2d');
+        adCtx.fillStyle = '#000000'; adCtx.fillRect(0, 0, 1024, 128);
+        adCtx.fillStyle = '#FFD700'; adCtx.font = 'bold 64px "Poppins", sans-serif'; // Increased font size
+        adCtx.textAlign = 'center'; adCtx.textBaseline = 'middle';
+        adCtx.fillText('HAPPY BIRTHDAY ROCKY  ⚽  HAPPY BIRTHDAY ROCKY  ⚽', 512, 64);
+
+        adTexture = new THREE.CanvasTexture(adCanvas);
+        adTexture.wrapS = THREE.RepeatWrapping;
+        adTexture.wrapT = THREE.RepeatWrapping;
+        adTexture.repeat.set(6, 1);
+
+        const adMat = new THREE.MeshStandardMaterial({ 
+            map: adTexture, emissiveMap: adTexture, 
+            emissive: new THREE.Color(0xFFFFFF), emissiveIntensity: 0.8, roughness: 0.4 
+        });
+
+        const adHeight = 24; // 3x taller than before
+        const adDistX = V_WIDTH/2 + 69; // Flush against the stands (200 + 70 = 270)
+        const adDistZ = V_HEIGHT/2 + 69; // Flush against the stands (250 + 70 = 320)
+
+        const topAd = new THREE.Mesh(new THREE.BoxGeometry(adDistX*2, adHeight, 2), adMat);
+        topAd.position.set(0, adHeight/2, -adDistZ); fieldGroup.add(topAd);
+
+        const bottomAd = new THREE.Mesh(new THREE.BoxGeometry(adDistX*2, adHeight, 2), adMat);
+        bottomAd.position.set(0, adHeight/2, adDistZ); bottomAd.rotation.y = Math.PI; fieldGroup.add(bottomAd);
+
+        // Fixed: Swapped the width and depth so the 90-degree rotation places them along the sides!
+        const leftAd = new THREE.Mesh(new THREE.BoxGeometry(adDistZ*2, adHeight, 2), adMat);
+        leftAd.position.set(-adDistX, adHeight/2, 0); leftAd.rotation.y = Math.PI / 2; fieldGroup.add(leftAd);
+
+        const rightAd = new THREE.Mesh(new THREE.BoxGeometry(adDistZ*2, adHeight, 2), adMat);
+        rightAd.position.set(adDistX, adHeight/2, 0); rightAd.rotation.y = -Math.PI / 2; fieldGroup.add(rightAd);
+
+        // --- STADIUM STANDS ---
         const standMat = new THREE.MeshStandardMaterial({ color: 0x4a505e, roughness: 0.8 }); 
         const seatMat = new THREE.MeshStandardMaterial({ color: 0x1E90FF, roughness: 0.6 }); 
         const numTiers = 5, tierWidth = 25, tierHeight = 18;
@@ -725,6 +765,7 @@
     let playerTeam = null;
     let customOpponentTeams = [];
     let currentPlayersPerTeam = 1;
+    let hasWelcomed = false; // Tracks if we've shown the initial welcome
     
     let entities = [];
     let ball = null;
@@ -881,7 +922,15 @@
                 
                 // Shoot if close to goal
                 if (distToGoal < 120) {
-                    this.facingAngle = Math.atan2(dyToGoal, dxToGoal);
+                    let aimX = goalX;
+                    
+                    // If the goalie is holding the line, strategically aim for the corners
+                    if (goalie && !goalie.isCharging && Math.random() > 0.3) {
+                        // Aim for the corner opposite to the goalie's current position
+                        aimX = goalie.x < goalX ? goalX + 45 : goalX - 45;
+                    }
+                    
+                    this.facingAngle = Math.atan2(goalY - this.y, aimX - this.x);
                     shootBall(this);
                     return;
                 }
@@ -989,6 +1038,7 @@
             super(V_WIDTH/2, 60, 24, {color1: '#FFA500', color2: '#222222'}, true);
             this.isGoalie = true; this.speed = 1.35; this.startY = 60;
             this.wasBallInZone = false; this.isCharging = false;
+            this.diveTargetX = null; // Tracks their commitment to a dive
         }
 
         createMesh() {
@@ -1010,20 +1060,47 @@
             if (!ball) return;
             let targetX = ball.x;
             const goalLeft = V_WIDTH/2 - 50; const goalRight = V_WIDTH/2 + 50;
-            if (targetX < goalLeft) targetX = goalLeft; if (targetX > goalRight) targetX = goalRight;
 
             let targetY = this.startY;
             let ballInZone = (ball.y < 160 && ball.x > goalLeft - 40 && ball.x < goalRight + 40);
             
             if (ballInZone) {
-                if (!this.wasBallInZone) this.isCharging = Math.random() > 0.4; 
+                if (!this.wasBallInZone) {
+                    this.isCharging = Math.random() > 0.4; 
+                    this.diveTargetX = null; // Reset dive on new entry
+                }
                 this.wasBallInZone = true;
-            } else { this.wasBallInZone = false; this.isCharging = false; }
+            } else { 
+                this.wasBallInZone = false; 
+                this.isCharging = false; 
+                this.diveTargetX = null;
+            }
 
             if (this.isCharging) {
                 targetY = Math.max(20, ball.y - 15); 
                 if (targetY > 120) targetY = 120; 
+                targetX = ball.x;
+            } else {
+                // On the goal line: Reaction logic for fast shots!
+                if (ball.vy < -3 && ballInZone) {
+                    if (this.diveTargetX === null) {
+                        // 35% chance to dive the wrong way!
+                        if (Math.random() < 0.35) {
+                            this.diveTargetX = ball.x < V_WIDTH/2 ? goalRight : goalLeft;
+                        } else {
+                            // Predict the shot correctly
+                            this.diveTargetX = ball.x + (ball.vx * 10); 
+                        }
+                    }
+                    targetX = this.diveTargetX;
+                } else {
+                    this.diveTargetX = null;
+                    targetX = ball.x;
+                }
             }
+
+            if (targetX < goalLeft) targetX = goalLeft; 
+            if (targetX > goalRight) targetX = goalRight;
 
             let dx = targetX - this.x; let dy = targetY - this.y;
             if (Math.abs(dx) > 5) this.vx += Math.sign(dx) * this.speed * 0.4; else this.vx *= 0.5;
@@ -1349,7 +1426,14 @@
 
         let remainingNames = activeTeams.map(t => t.name).join(' vs ');
         if (activeTeams.length > 3) remainingNames = `${activeTeams.length} TEAMS REMAINING`;
-        showAnnouncement(`ROUND ${tournamentRound}`, remainingNames, '#FFD700', 2500);
+        
+        // Welcome Message Logic
+        if (tournamentRound === 1 && !hasWelcomed) {
+            showAnnouncement("WELCOME TO\nROCKMAN STADIUM", "TOURNAMENT BEGINS", '#FFD700', 3500);
+            hasWelcomed = true; // Prevents it from showing again on new games
+        } else {
+            showAnnouncement(`ROUND ${tournamentRound}`, remainingNames, '#FFD700', 2500);
+        }
         
         audio.playWhistle();
         gameState = 'playing';
@@ -1374,28 +1458,31 @@
         updateLeaderboard(); 
 
         let remainingMsg = `${activeTeams.length} TEAM${activeTeams.length > 1 ? 'S' : ''} LEFT TO QUALIFY`;
-        showAnnouncement(`${scoringTeam.name} SCORES!`, remainingMsg, scoringTeam.color1, 2500);
+        // Sped up the score announcement (was 2500)
+        showAnnouncement(`${scoringTeam.name} SCORES!`, remainingMsg, scoringTeam.color1, 1500);
 
         if (activeTeams.length === 1) {
             const eliminated = activeTeams[0];
             activeTeams = []; 
             eliminatedTeams.push(eliminated);
             
+            // Reduced wait time significantly
             setTimeout(() => {
                 updateLeaderboard(); 
-                showAnnouncement(`${eliminated.name} ELIMINATED!`, "KNOCKED OUT OF THE TOURNAMENT", "#ff3333", 3000);
+                showAnnouncement(`${eliminated.name} ELIMINATED!`, "KNOCKED OUT OF THE TOURNAMENT", "#ff3333", 2000);
                 
                 if (safeTeams.length === 1) {
-                    setTimeout(() => triggerGameOver(safeTeams[0]), 3500);
+                    setTimeout(() => triggerGameOver(safeTeams[0]), 2500);
                 } else {
                     tournamentRound++;
                     activeTeams = [...safeTeams];
                     safeTeams = [];
-                    setTimeout(startRound, 3500);
+                    setTimeout(startRound, 2500);
                 }
-            }, 3000);
+            }, 1500);
         } else {
-            setTimeout(startRound, 3000);
+            // Restart the round much faster if it isn't an elimination
+            setTimeout(startRound, 1500);
         }
     }
 
@@ -1405,7 +1492,16 @@
         for (let i = 0; i < 200; i++) {
             const p = new THREE.Mesh(new THREE.PlaneGeometry(2, 4), new THREE.MeshBasicMaterial({ color: colors[Math.floor(Math.random() * colors.length)], side: THREE.DoubleSide }));
             p.position.set((Math.random() - 0.5) * goalW, 40 + Math.random() * 20, get3DZ(-10) + (Math.random() - 0.5) * 20);
-            p.userData = { vx: (Math.random() - 0.5) * 4, vy: Math.random() * 6 + 2, vz: (Math.random() - 0.5) * 4, rx: (Math.random() - 0.5) * 0.5, ry: (Math.random() - 0.5) * 0.5, rz: (Math.random() - 0.5) * 0.5 };
+            
+            // Increased initial burst speeds
+            p.userData = { 
+                vx: (Math.random() - 0.5) * 6, 
+                vy: Math.random() * 10 + 5, 
+                vz: (Math.random() - 0.5) * 6, 
+                rx: (Math.random() - 0.5) * 0.5, 
+                ry: (Math.random() - 0.5) * 0.5, 
+                rz: (Math.random() - 0.5) * 0.5 
+            };
             scene.add(p); confettiParticles.push(p);
         }
     }
@@ -1413,10 +1509,20 @@
     function updateConfetti() {
         for (let i = confettiParticles.length - 1; i >= 0; i--) {
             let p = confettiParticles[i]; let data = p.userData;
-            data.vy -= 0.15; data.vx *= 0.98; data.vz *= 0.98;
+            
+            // Increased gravity (was 0.15) and reduced air drag so they fall naturally
+            data.vy -= 0.4; 
+            data.vx *= 0.95; 
+            data.vz *= 0.95;
+            
             p.position.x += data.vx; p.position.y += data.vy; p.position.z += data.vz;
             p.rotation.x += data.rx; p.rotation.y += data.ry; p.rotation.z += data.rz;
-            if (p.position.y <= 1) { p.position.y = 1; data.vy *= -0.5; data.vx *= 0.8; data.vz *= 0.8; }
+            
+            // Removed the floor collision so they naturally fall out of view instead of hanging around
+            if (p.position.y < -100) {
+                // Stop calculating physics once they are way beneath the floor
+                data.vy = 0; data.vx = 0; data.vz = 0;
+            }
         }
     }
 
@@ -1480,6 +1586,11 @@
         if (gameState === 'playing' || gameState === 'scored') {
             entities.forEach(e => e.update());
             if (ball) ball.update();
+
+            // Scroll the Advertisement LED Boards
+            if (adTexture) {
+                adTexture.offset.x -= 0.003;
+            }
 
             // Resolve overlapping entities
             for (let i = 0; i < entities.length; i++) {
