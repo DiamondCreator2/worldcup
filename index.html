@@ -1149,9 +1149,26 @@
     }
 
     function resolveCollision(entity, ball) {
-        if (ball.possessionCooldown > 0 || entity.stealCooldown > 0 || ball.possessedBy === entity) return;
-        if (!entity.isGoalie) { lastTouchedBy = entity.team; ball.possessedBy = entity; audio.playDribble(); } 
-        else { ball.possessedBy = null; ball.possessionCooldown = 15; ball.vy = 6; ball.vx = (Math.random() - 0.5) * 4; audio.playShoot(); }
+        // Goalies ALWAYS block the ball, even if it was just shot (ignoring possession cooldown)
+        if ((!entity.isGoalie && ball.possessionCooldown > 0) || entity.stealCooldown > 0 || ball.possessedBy === entity) return;
+        
+        if (!entity.isGoalie) { 
+            lastTouchedBy = entity.team; 
+            ball.possessedBy = entity; 
+            audio.playDribble(); 
+        } else { 
+            // Goalie blocks the shot!
+            ball.possessedBy = null; 
+            ball.possessionCooldown = 15; 
+            
+            // Push ball downwards to prevent it from getting stuck inside the goalie
+            ball.y = entity.y + entity.size/2 + ball.radius;
+            
+            // Deflect ball away based on shot power
+            ball.vy = Math.abs(ball.vy) * 0.5 + 4; // Bounce it back down the field
+            ball.vx = (Math.random() - 0.5) * 6 + (ball.vx * -0.5); 
+            audio.playShoot(); 
+        }
     }
 
 
