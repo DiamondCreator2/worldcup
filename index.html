@@ -993,6 +993,9 @@
     const keys = { ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false, w: false, a: false, s: false, d: false, ' ': false };
     let joystickVector = { x: 0, y: 0 };
     let aimVector = { x: 0, y: 0 };
+    window.isMobileAiming = false;
+    window.mobileAimMag = 0;
+    window.cancelShoot = false;
     let teamSelectTarget = null; 
 
     // --- MENU / UI LOGIC ---
@@ -1261,7 +1264,7 @@
                 this.isAiming = true;
             } else if (this.isCharging && joystickVector.x === 0 && joystickVector.y === 0) {
                 // Apply smooth keyboard turning logic
-                let turnSpeed = 0.08;
+                let turnSpeed = 0.035; // SLOWER AIMING ON PC (Reduced from 0.08)
                 if (!isMultiplayer || this.ownerUid === localSessionId) {
                     if (kLeft) this.facingAngle -= turnSpeed;
                     if (kRight) this.facingAngle += turnSpeed;
@@ -1285,20 +1288,32 @@
             if (!isMultiplayer || this.ownerUid === localSessionId) {
                 if (shootKey) {
                     if (!this.isCharging) { this.isCharging = true; this.chargeAmount = 0; }
-                    this.chargeAmount += 0.4; // Charge rate
-                    if (this.chargeAmount > 10) this.chargeAmount = 10;
+                    if (window.isMobileAiming) {
+                        this.chargeAmount = window.mobileAimMag * 10; // Mobile charge maps to joystick distance
+                    } else {
+                        this.chargeAmount += 0.4; // PC charge maps to time held
+                        if (this.chargeAmount > 10) this.chargeAmount = 10;
+                    }
                 } else if (!shootKey && this.isCharging) {
                     this.isCharging = false;
-                    shootBall(this, this.chargeAmount);
-                    if (isMultiplayer && !isHost) window.pendingNetworkFire = this.chargeAmount;
+                    if (window.cancelShoot) {
+                        window.cancelShoot = false; // Shot canceled!
+                    } else {
+                        shootBall(this, this.chargeAmount);
+                        if (isMultiplayer && !isHost) window.pendingNetworkFire = this.chargeAmount;
+                    }
                     this.chargeAmount = 0;
                 }
             } else if (isMultiplayer && isHost && this.ownerUid !== localSessionId) {
                 // Host purely mirrors the client's charging state for visuals
                 if (shootKey) {
                     if (!this.isCharging) { this.isCharging = true; this.chargeAmount = 0; }
-                    this.chargeAmount += 0.4;
-                    if (this.chargeAmount > 10) this.chargeAmount = 10;
+                    if (ax !== 0 || ay !== 0) {
+                        this.chargeAmount = Math.min(10, Math.sqrt(ax*ax + ay*ay) * 10);
+                    } else {
+                        this.chargeAmount += 0.4;
+                        if (this.chargeAmount > 10) this.chargeAmount = 10;
+                    }
                 } else {
                     this.isCharging = false; this.chargeAmount = 0;
                 }
@@ -1791,6 +1806,10 @@
                     rBase.style.left = t.clientX + 'px'; rBase.style.top = t.clientY + 'px';
                     rBase.style.display = 'block'; rKnob.style.transform = `translate(-50%, -50%)`;
                     aimVector = {x:0, y:0};
+                    window.isMobileAiming = true;
+                    window.mobileAimMag = 0;
+                    window.cancelShoot = false;
+                    keys[' '] = true; // Act as if space is held
                 }
             }
         }, {passive: false});
@@ -1804,15 +1823,21 @@
                 if (t.identifier === leftTouchId) {
                     let dx = t.clientX - leftBasePos.x; let dy = t.clientY - leftBasePos.y;
                     let dist = Math.sqrt(dx*dx + dy*dy);
-                    if (dist > 40) { dx = (dx/dist)*40; dy = (dy/dist)*40; }
+                    if (dist > 40) { dx = (dx/dist)*40; dy = (dy/dist)*40; dist = 40; }
                     lKnob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
                     if (dist > 5) joystickVector = {x: dx/40, y: dy/40}; else joystickVector = {x:0, y:0};
                 } else if (t.identifier === rightTouchId) {
                     let dx = t.clientX - rightBasePos.x; let dy = t.clientY - rightBasePos.y;
                     let dist = Math.sqrt(dx*dx + dy*dy);
-                    if (dist > 40) { dx = (dx/dist)*40; dy = (dy/dist)*40; }
+                    if (dist > 40) { dx = (dx/dist)*40; dy = (dy/dist)*40; dist = 40; }
                     rKnob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
-                    if (dist > 5) aimVector = {x: dx/40, y: dy/40}; else aimVector = {x:0, y:0};
+                    if (dist > 5) { 
+                        aimVector = {x: dx/40, y: dy/40}; 
+                        window.mobileAimMag = dist / 40; 
+                    } else { 
+                        aimVector = {x:0, y:0}; 
+                        window.mobileAimMag = 0; 
+                    }
                 }
             }
         }, {passive: false});
@@ -1824,8 +1849,12 @@
                     leftTouchId = null; lBase.style.display = 'none'; joystickVector = {x:0, y:0};
                 } else if (t.identifier === rightTouchId) {
                     rightTouchId = null; rBase.style.display = 'none';
-                    keys[' '] = false; // RELEASE CHARGE (Triggers shot automatically)
-                    setTimeout(() => { aimVector = {x:0, y:0}; }, 50);
+                    if (window.mobileAimMag < 0.25) {
+                        window.cancelShoot = true; // Joystick dragged back to middle: CANCEL SHOT!
+                    }
+                    keys[' '] = false; // RELEASE CHARGE (Triggers shot automatically unless canceled)
+                    window.isMobileAiming = false;
+                    setTimeout(() => { aimVector = {x:0, y:0}; window.mobileAimMag = 0; }, 50);
                 }
             }
         };
