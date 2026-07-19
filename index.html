@@ -303,7 +303,6 @@
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
     import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-    // CHANGED: Imported Realtime Database instead of Firestore
     import { getDatabase, ref, set, get, onValue, update, remove } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
 
     // --- GAME DATA (48 TEAMS) ---
@@ -519,6 +518,7 @@
     let lastNetworkSync = 0;
     let lastInputSync = 0;
     window.pendingNetworkShoot = false; 
+    window.pendingNetworkFire = null;
     window.pendingNetworkSteal = null;  
     window.pendingNetworkLost = null;   
     window.pendingNetworkGrab = false;  
@@ -934,9 +934,23 @@
         if (now - lastInputSync > 50) { 
             lastInputSync = now;
             let dx = 0; let dy = 0;
-            if (keys.ArrowUp || keys.w) dy -= 1; if (keys.ArrowDown || keys.s) dy += 1;
-            if (keys.ArrowLeft || keys.a) dx -= 1; if (keys.ArrowRight || keys.d) dx += 1;
+            let kLeft = keys.ArrowLeft || keys.a;
+            let kRight = keys.ArrowRight || keys.d;
+            let kUp = keys.ArrowUp || keys.w;
+            let kDown = keys.ArrowDown || keys.s;
+
+            if (kUp) dy -= 1; if (kDown) dy += 1;
+            if (kLeft) dx -= 1; if (kRight) dx += 1;
             if (joystickVector.x !== 0 || joystickVector.y !== 0) { dx = joystickVector.x; dy = joystickVector.y; }
+            
+            let localPlayer = entities.find(e => e.ownerUid === localSessionId);
+            let isChargingLocally = localPlayer ? localPlayer.isCharging : false;
+            let td = 0;
+            if (isChargingLocally && joystickVector.x === 0 && joystickVector.y === 0) {
+                dx = 0;
+                if (kLeft) td = -1;
+                if (kRight) td = 1;
+            }
             
             let pShoot = keys[' '] || window.pendingNetworkShoot;
             let pFire = window.pendingNetworkFire !== undefined ? window.pendingNetworkFire : null;
@@ -945,7 +959,7 @@
             let pGrab = window.pendingNetworkGrab || false;
 
             window.pendingNetworkShoot = false; window.pendingNetworkFire = null; window.pendingNetworkSteal = null; window.pendingNetworkLost = null; window.pendingNetworkGrab = false;
-            try { await set(ref(db, 'parties/' + partyCode + '/inputs/' + localSessionId), { dx: dx, dy: dy, s: pShoot, fire: pFire, steal: pSteal, lost: pLost, grab: pGrab, ax: aimVector.x, ay: aimVector.y }); } catch(e){}
+            try { await set(ref(db, 'parties/' + partyCode + '/inputs/' + localSessionId), { dx: dx, dy: dy, s: pShoot, fire: pFire, steal: pSteal, lost: pLost, grab: pGrab, ax: aimVector.x, ay: aimVector.y, td: td }); } catch(e){}
         }
     }
 
@@ -1038,7 +1052,7 @@
             this.facingAngle = -Math.PI / 2; this.stealCooldown = 0; 
             this.targetX = x; this.targetY = y; 
             this.jumpZ = 0; this.vz = 0; this.isAiming = false;
-            this.isCharging = false; this.chargeAmount = 0; // NEW CHARGE VARIABLES
+            this.isCharging = false; this.chargeAmount = 0; 
             this.invincibleCooldown = 0;
 
             this.mesh = this.createMesh(); scene.add(this.mesh); this.updateMeshPosition();
@@ -1061,18 +1075,14 @@
                 let mColor = null; let showName = false; let nColor = '#ffffff';
 
                 if (this.ownerUid === localSessionId) {
-                    // Local Human
                     mColor = 0xffff00; showName = true; nColor = '#ffff00';
                 } else if (!this.isAI && playerTeam && this.team.id === playerTeam.id) {
-                    // Human Teammate
                     mColor = 0x00ffff; showName = true; nColor = '#00ffff';
                 } else if (!this.isAI && playerTeam && this.team.id !== playerTeam.id) {
-                    // Human Enemy
                     mColor = 0xff0000; showName = true; nColor = '#ff0000';
                 } else if (this.isAI && playerTeam && this.team.id === playerTeam.id) {
-                    // Bot Teammate (No name)
                     mColor = 0x00ffff; 
-                } // Bot enemy gets nothing
+                } 
 
                 if (mColor !== null) {
                     const marker = new THREE.Mesh(new THREE.ConeGeometry(4, 8, 4), new THREE.MeshBasicMaterial({ color: mColor })); 
@@ -1169,10 +1179,10 @@
             if (isMultiplayer && !isHost && this.ownerUid !== localSessionId) { 
                 this.mesh.rotation.y = Math.PI/2 - this.facingAngle; 
             } else {
-                if (this.isAiming) {
+                if (this.isAiming || this.isCharging) {
                     this.mesh.rotation.y = Math.PI/2 - this.facingAngle;
                 } else if (Math.abs(this.vx) > 0.1 || Math.abs(this.vy) > 0.1) {
-                    this.facingAngle = Math.atan2(this.vy, this.vx); this.mesh.rotation.y = Math.atan2(this.vx, this.vy);
+                    this.facingAngle = Math.atan2(this.vy, this.vx); this.mesh.rotation.y = Math.PI/2 - this.facingAngle;
                 } else {
                     this.mesh.rotation.y = Math.PI/2 - this.facingAngle;
                 }
@@ -1191,12 +1201,17 @@
         }
 
         handleInput() {
-            let dx = 0; let dy = 0; let shootKey = false; let ax = 0; let ay = 0;
+            let dx = 0; let dy = 0; let shootKey = false; let ax = 0; let ay = 0; let td = 0;
             
+            let kLeft = keys.ArrowLeft || keys.a;
+            let kRight = keys.ArrowRight || keys.d;
+            let kUp = keys.ArrowUp || keys.w;
+            let kDown = keys.ArrowDown || keys.s;
+
             if (isMultiplayer) {
                 if (this.ownerUid === localSessionId) { 
-                    if (keys.ArrowUp || keys.w) dy -= 1; if (keys.ArrowDown || keys.s) dy += 1;
-                    if (keys.ArrowLeft || keys.a) dx -= 1; if (keys.ArrowRight || keys.d) dx += 1;
+                    if (kUp) dy -= 1; if (kDown) dy += 1;
+                    if (kLeft) dx -= 1; if (kRight) dx += 1;
                     if (joystickVector.x !== 0 || joystickVector.y !== 0) { dx = joystickVector.x; dy = joystickVector.y; }
                     shootKey = keys[' ']; ax = aimVector.x; ay = aimVector.y;
                 } else if (isHost) { 
@@ -1204,6 +1219,7 @@
                     if (inputs) { 
                         dx = inputs.dx; dy = inputs.dy; shootKey = inputs.s; 
                         if (inputs.ax !== undefined) { ax = inputs.ax; ay = inputs.ay; }
+                        if (inputs.td !== undefined) { td = inputs.td; }
                         
                         // Handle Remote Client's Explicit Shoot Trigger
                         if (inputs.fire !== undefined && inputs.fire !== null) {
@@ -1234,14 +1250,25 @@
                     }
                 }
             } else {
-                if (keys.ArrowUp || keys.w) dy -= 1; if (keys.ArrowDown || keys.s) dy += 1;
-                if (keys.ArrowLeft || keys.a) dx -= 1; if (keys.ArrowRight || keys.d) dx += 1;
+                if (kUp) dy -= 1; if (kDown) dy += 1;
+                if (kLeft) dx -= 1; if (kRight) dx += 1;
                 if (joystickVector.x !== 0 || joystickVector.y !== 0) { dx = joystickVector.x; dy = joystickVector.y; }
                 shootKey = keys[' ']; ax = aimVector.x; ay = aimVector.y;
             }
 
             if (ax !== 0 || ay !== 0) {
                 this.facingAngle = Math.atan2(ay, ax);
+                this.isAiming = true;
+            } else if (this.isCharging && joystickVector.x === 0 && joystickVector.y === 0) {
+                // Apply smooth keyboard turning logic
+                let turnSpeed = 0.08;
+                if (!isMultiplayer || this.ownerUid === localSessionId) {
+                    if (kLeft) this.facingAngle -= turnSpeed;
+                    if (kRight) this.facingAngle += turnSpeed;
+                    dx = 0; // Cancel horizontal movement so A/D acts strictly as a turning mechanism
+                } else if (isHost && td !== 0) {
+                    this.facingAngle += td * turnSpeed;
+                }
                 this.isAiming = true;
             } else {
                 this.isAiming = false;
@@ -1384,7 +1411,7 @@
     class Goalie extends Entity {
         constructor() {
             super(V_WIDTH/2, 60, 24, {color1: '#FFA500', color2: '#222222'}, true, 'goalie', 'AI', '');
-            this.isGoalie = true; this.speed = 1.35; this.startY = 60;
+            this.isGoalie = true; this.speed = 0.95; this.startY = 60; // Lowered goalie speed from 1.35 to 0.95
             this.wasBallInZone = false; this.isCharging = false; this.diveTargetX = null; 
         }
         update() {
@@ -1429,7 +1456,7 @@
                         } else if (rand < 0.45) {
                             this.diveTargetX = ball.x < V_WIDTH/2 ? goalRight : goalLeft;
                         } else {
-                            this.diveTargetX = ball.x + (ball.vx * 10); 
+                            this.diveTargetX = ball.x + (ball.vx * 6); // Lowered prediction from 10 to 6
                         }
                     }
                     targetX = this.diveTargetX;
@@ -1438,8 +1465,9 @@
 
             if (targetX < goalLeft) targetX = goalLeft; if (targetX > goalRight) targetX = goalRight;
             let dx = targetX - this.x; let dy = targetY - this.y;
-            if (Math.abs(dx) > 5) this.vx += Math.sign(dx) * this.speed * 0.4; else this.vx *= 0.5;
-            if (Math.abs(dy) > 5) this.vy += Math.sign(dy) * this.speed * 0.4; else this.vy *= 0.5;
+            // Lowered goalie acceleration from 0.4 to 0.25
+            if (Math.abs(dx) > 5) this.vx += Math.sign(dx) * this.speed * 0.25; else this.vx *= 0.5;
+            if (Math.abs(dy) > 5) this.vy += Math.sign(dy) * this.speed * 0.25; else this.vy *= 0.5;
         }
     }
 
@@ -1548,7 +1576,7 @@
         if (!entity.isGoalie) { 
             lastTouchedBy = entity.team; 
             ball.possessedBy = entity; 
-            entity.invincibleCooldown = 18;
+            entity.invincibleCooldown = 18; // 0.3 second invincibility when grabbing loose ball!
             audio.playDribble(); 
             if (isMultiplayer && !isHost && entity.ownerUid === localSessionId) window.pendingNetworkGrab = true;
         } 
@@ -1726,7 +1754,7 @@
     }
 
     // --- INPUT ---
-    // Caps Lock safe keyboard handlers
+    // Caps Lock safe keyboard handlers!
     window.addEventListener('keydown', (e) => { 
         let k = e.key; if (k && k.length === 1) k = k.toLowerCase();
         if (keys.hasOwnProperty(k)) keys[k] = true; 
