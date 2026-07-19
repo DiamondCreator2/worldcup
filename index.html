@@ -164,9 +164,9 @@
 
         /* --- DRAG AND DROP LOBBY CLASSES --- */
         .draggable-player {
-            background: rgba(255,255,255,0.1); padding: 8px; border-radius: 4px; 
-            margin-bottom: 5px; cursor: grab; font-size: 12px; border: 1px solid rgba(255,255,255,0.2);
-            user-select: none; transition: transform 0.1s;
+            background: rgba(255,255,255,0.1); padding: 12px 8px; border-radius: 6px; 
+            margin-bottom: 5px; cursor: grab; font-size: 14px; border: 1px solid rgba(255,255,255,0.2);
+            user-select: none; transition: transform 0.1s; touch-action: none;
         }
         .draggable-player:active { cursor: grabbing; transform: scale(0.95); }
         .team-dropzone {
@@ -175,8 +175,9 @@
         }
         .add-bot-btn {
             background: rgba(40, 167, 69, 0.3); border: 1px dashed #4CAF50; color: #4CAF50; 
-            padding: 6px; border-radius: 4px; cursor: pointer; font-size: 12px; margin-top: auto; font-weight: bold;
+            padding: 10px; border-radius: 6px; cursor: pointer; font-size: 14px; margin-top: auto; font-weight: bold;
             display: flex; align-items: center; justify-content: center; width: 100%; transition: background 0.2s;
+            min-height: 38px;
         }
         .add-bot-btn:hover { background: rgba(40, 167, 69, 0.6); color: #fff; }
         .team-select-dropdown {
@@ -706,47 +707,120 @@
         await update(ref(db, 'parties/' + partyCode), { matchConfig: config });
     };
 
-    window.dragStart = (e, uid, fromTeam) => {
-        if (!isHost) return;
-        e.dataTransfer.setData('text/plain', JSON.stringify({uid, fromTeam}));
-    };
-    
-    window.dropToPool = async (e) => {
+    // --- REFACTORED DRAG & DROP + TOUCH GESTURES ---
+    window.processPoolDrop = async (uid, fromTeam) => {
         if (!isHost || !partyData || !partyData.matchConfig) return;
-        e.preventDefault();
         try {
-            const data = JSON.parse(e.dataTransfer.getData('text/plain'));
-            if (data.uid === 'BOT') { window.removeBot(data.fromTeam); return; }
-            if (data.fromTeam) {
+            if (uid === 'BOT') { window.removeBot(fromTeam); return; }
+            if (fromTeam) {
                 let config = partyData.matchConfig;
-                config.assignments[data.fromTeam] = config.assignments[data.fromTeam].filter(u => u !== data.uid);
+                config.assignments[fromTeam] = config.assignments[fromTeam].filter(u => u !== uid);
                 await update(ref(db, 'parties/' + partyCode), { matchConfig: config });
             }
         } catch(err){}
     };
 
-    window.dropToTeam = async (e, toTeam) => {
+    window.processDropToTeam = async (uid, fromTeam, toTeam) => {
         if (!isHost || !partyData || !partyData.matchConfig) return;
-        e.preventDefault();
         try {
-            const data = JSON.parse(e.dataTransfer.getData('text/plain'));
             let config = partyData.matchConfig;
             if (!config.assignments[toTeam]) config.assignments[toTeam] = [];
             if (config.assignments[toTeam].length >= 4) return;
             
-            if (data.uid === 'BOT' && data.fromTeam) {
-                let idx = config.assignments[data.fromTeam].indexOf('BOT');
-                if (idx > -1) config.assignments[data.fromTeam].splice(idx, 1);
+            if (uid === 'BOT' && fromTeam) {
+                let idx = config.assignments[fromTeam].indexOf('BOT');
+                if (idx > -1) config.assignments[fromTeam].splice(idx, 1);
                 config.assignments[toTeam].push('BOT');
             } else {
-                if (data.fromTeam) {
-                    let idx = config.assignments[data.fromTeam].indexOf(data.uid);
-                    if (idx > -1) config.assignments[data.fromTeam].splice(idx, 1);
+                if (fromTeam) {
+                    let idx = config.assignments[fromTeam].indexOf(uid);
+                    if (idx > -1) config.assignments[fromTeam].splice(idx, 1);
                 }
-                config.assignments[toTeam].push(data.uid);
+                
+                let currentHumans = (config.assignments[toTeam] || []).filter(u => u !== 'BOT').length;
+                config.assignments[toTeam].push(uid);
+                
+                if (currentHumans === 0 && uid !== 'BOT') {
+                    if (!config.customNames) config.customNames = {};
+                    let p = partyData.players.find(x => x.uid === uid);
+                    if (p) config.customNames[toTeam] = p.name.substring(0, 15);
+                }
             }
             await update(ref(db, 'parties/' + partyCode), { matchConfig: config });
         } catch(err){}
+    };
+
+    window.dragStart = (e, uid, fromTeamStr) => {
+        if (!isHost) return;
+        let fromTeam = (fromTeamStr === 'null' || !fromTeamStr) ? null : fromTeamStr;
+        e.dataTransfer.setData('text/plain', JSON.stringify({uid, fromTeam}));
+    };
+
+    window.dropToPool = (e) => {
+        e.preventDefault();
+        try {
+            const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+            window.processPoolDrop(data.uid, data.fromTeam);
+        } catch(e) {}
+    };
+
+    window.dropToTeam = (e, toTeam) => {
+        e.preventDefault();
+        try {
+            const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+            window.processDropToTeam(data.uid, data.fromTeam, toTeam);
+        } catch(e) {}
+    };
+
+    // Mobile Touch Drag Implementation
+    let draggedPlayer = null;
+    let ghostEl = null;
+
+    window.touchDragStart = (e, uid, fromTeamStr) => {
+        if (!isHost) return;
+        let fromTeam = (fromTeamStr === 'null' || !fromTeamStr) ? null : fromTeamStr;
+        draggedPlayer = { uid, fromTeam };
+        const touch = e.touches[0];
+        
+        ghostEl = e.target.cloneNode(true);
+        ghostEl.style.position = 'fixed';
+        ghostEl.style.opacity = '0.8';
+        ghostEl.style.pointerEvents = 'none';
+        ghostEl.style.zIndex = '9999';
+        ghostEl.style.width = e.target.offsetWidth + 'px';
+        ghostEl.style.left = (touch.clientX - e.target.offsetWidth / 2) + 'px';
+        ghostEl.style.top = (touch.clientY - e.target.offsetHeight / 2) + 'px';
+        document.body.appendChild(ghostEl);
+    };
+
+    window.touchDragMove = (e) => {
+        if (!ghostEl) return;
+        e.preventDefault(); // Stop scrolling while actively dragging
+        const touch = e.touches[0];
+        ghostEl.style.left = (touch.clientX - ghostEl.offsetWidth / 2) + 'px';
+        ghostEl.style.top = (touch.clientY - ghostEl.offsetHeight / 2) + 'px';
+    };
+
+    window.touchDragEnd = async (e) => {
+        if (!ghostEl || !draggedPlayer) return;
+        const touch = e.changedTouches[0];
+        if (document.body.contains(ghostEl)) document.body.removeChild(ghostEl);
+        ghostEl = null;
+        
+        const dropTarget = document.elementFromPoint(touch.clientX, touch.clientY);
+        if (!dropTarget) { draggedPlayer = null; return; }
+        
+        const teamZone = dropTarget.closest('.team-dropzone');
+        const poolZone = dropTarget.closest('#mp-pool-list');
+        
+        if (teamZone) {
+            const toTeam = teamZone.getAttribute('data-tid');
+            if (toTeam) await window.processDropToTeam(draggedPlayer.uid, draggedPlayer.fromTeam, toTeam);
+        } else if (poolZone) {
+            await window.processPoolDrop(draggedPlayer.uid, draggedPlayer.fromTeam);
+        }
+        
+        draggedPlayer = null;
     };
 
     window.addBot = async (teamId) => {
@@ -879,7 +953,12 @@
         if (partyData.players) {
             partyData.players.forEach(p => {
                 if (!assignedUids.includes(p.uid)) {
-                    poolDiv.innerHTML += `<div class="draggable-player" draggable="${isHost}" ondragstart="window.dragStart(event, '${p.uid}', null)" ${isHost ? `onclick="window.clickPlayer('${p.uid}', null)"` : ''}>
+                    poolDiv.innerHTML += `<div class="draggable-player" draggable="${isHost}" 
+                        ondragstart="window.dragStart(event, '${p.uid}', 'null')" 
+                        ontouchstart="window.touchDragStart(event, '${p.uid}', 'null')"
+                        ontouchmove="window.touchDragMove(event)"
+                        ontouchend="window.touchDragEnd(event)"
+                        ${isHost ? `onclick="window.clickPlayer('${p.uid}', null)"` : ''}>
                         ${p.name} ${p.uid === partyData.host ? '👑' : ''}
                     </div>`;
                 }
@@ -900,13 +979,22 @@
                 
                 slots.forEach((uid, idx) => {
                     if (uid === 'BOT') {
-                        slotsHTML += `<div class="draggable-player" style="border-color: #aaa; color: #aaa;" draggable="${isHost}" ondragstart="window.dragStart(event, 'BOT', '${tid}')">
-                            🤖 BOT ${isHost ? `<span style="float:right; cursor:pointer; color:#ff4444; padding:0 5px;" onclick="window.removeBot('${tid}')">✖</span>` : ''}
+                        slotsHTML += `<div class="draggable-player" style="border-color: #aaa; color: #aaa;" draggable="${isHost}" 
+                            ondragstart="window.dragStart(event, 'BOT', '${tid}')"
+                            ontouchstart="window.touchDragStart(event, 'BOT', '${tid}')"
+                            ontouchmove="window.touchDragMove(event)"
+                            ontouchend="window.touchDragEnd(event)">
+                            🤖 BOT ${isHost ? `<span style="float:right; cursor:pointer; color:#ff4444; padding:0 10px;" onclick="window.removeBot('${tid}')">✖</span>` : ''}
                         </div>`;
                     } else {
                         const p = partyData.players ? partyData.players.find(x => x.uid === uid) : null;
                         const dName = p ? p.name : 'Unknown';
-                        slotsHTML += `<div class="draggable-player" style="border-color: ${team.color1};" draggable="${isHost}" ondragstart="window.dragStart(event, '${uid}', '${tid}')" ${isHost ? `onclick="window.clickPlayer('${uid}', '${tid}')"` : ''}>
+                        slotsHTML += `<div class="draggable-player" style="border-color: ${team.color1};" draggable="${isHost}" 
+                            ondragstart="window.dragStart(event, '${uid}', '${tid}')"
+                            ontouchstart="window.touchDragStart(event, '${uid}', '${tid}')"
+                            ontouchmove="window.touchDragMove(event)"
+                            ontouchend="window.touchDragEnd(event)"
+                            ${isHost ? `onclick="window.clickPlayer('${uid}', '${tid}')"` : ''}>
                             ${dName}
                         </div>`;
                     }
@@ -923,7 +1011,7 @@
                     `<select class="team-select-dropdown" style="color:${team.color1};" onchange="window.changeTeam('${tid}', this.value)">${optionsHTML}</select>` :
                     `<div style="font-size: 12px; font-weight: bold; margin-bottom: 5px; color:${team.color1};">${team.name}</div>`;
 
-                grid.innerHTML += `<div class="team-dropzone" style="border-left: 4px solid ${team.color1};" ondragover="event.preventDefault()" ondrop="window.dropToTeam(event, '${tid}')">
+                grid.innerHTML += `<div class="team-dropzone" data-tid="${tid}" style="border-left: 4px solid ${team.color1};" ondragover="event.preventDefault()" ondrop="window.dropToTeam(event, '${tid}')">
                     ${headerHTML}
                     <div style="display: flex; flex-direction: column; gap: 4px;">${slotsHTML}</div>
                     ${addBotBtn}
@@ -1054,8 +1142,11 @@
             let previousPossessor = ball.possessedBy;
             let newPossessor = state.bp === null ? null : entities.find(e => e.networkId === state.bp);
 
-            if (ball.clientAuthTimer > 0 && ball.possessedBy && ball.possessedBy.ownerUid === localSessionId) {
-                // Ignore server possession briefly if we just grabbed/stole it locally
+            let isOldSelfPossession = (newPossessor && newPossessor.ownerUid === localSessionId && !ball.possessedBy && ball.clientAuthTimer > 0);
+            let isProtectingGrab = (ball.clientAuthTimer > 0 && ball.possessedBy && ball.possessedBy.ownerUid === localSessionId);
+
+            if (isOldSelfPossession || isProtectingGrab) {
+                // Ignore server possession briefly to protect client physics and prevent double-shooting snapbacks!
             } else {
                 if (newPossessor !== ball.possessedBy) {
                     ball.possessedBy = newPossessor;
