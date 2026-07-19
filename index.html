@@ -994,9 +994,12 @@
             startRound(); 
         }
 
+        // Absolute Server Authority over Ball Possession (With Client-Side Protection)
         if (state.bp !== undefined && ball) {
             if (state.bp === null) {
-                if (ball.possessedBy && ball.possessedBy.ownerUid === localSessionId) {
+                if (ball.clientAuthTimer > 0) {
+                    // Protect local prediction! We just shot it, ignore older null packets from server
+                } else if (ball.possessedBy && ball.possessedBy.ownerUid === localSessionId) {
                     const bx = state.ball.x - ball.possessedBy.x; const by = state.ball.y - ball.possessedBy.y;
                     if (bx*bx + by*by > 900) ball.possessedBy = null; 
                 } else if (!ball.possessedBy || ball.possessedBy.ownerUid !== localSessionId || ball.possessionCooldown > 0) {
@@ -1005,18 +1008,21 @@
             } else {
                 const possessor = entities.find(e => e.networkId === state.bp);
                 if (possessor) {
-                    if (possessor.ownerUid !== localSessionId) ball.possessedBy = possessor;
-                    else if (!ball.possessedBy && ball.possessionCooldown === 0) ball.possessedBy = possessor;
+                    if (ball.clientAuthTimer > 0 && possessor.ownerUid !== localSessionId && ball.possessedBy && ball.possessedBy.ownerUid === localSessionId) {
+                        // Protect local prediction! We just stole it, ignore older host packets giving it back
+                    } else {
+                        if (possessor.ownerUid !== localSessionId) ball.possessedBy = possessor;
+                        else if (!ball.possessedBy && ball.possessionCooldown === 0) ball.possessedBy = possessor;
+                    }
                 }
             }
         }
 
         if(state.ball && ball) { 
             ball.targetX = state.ball.x; ball.targetY = state.ball.y; 
-            if (state.ball.vx !== undefined && state.ball.vy !== undefined) {
-                if (Math.abs(state.ball.vx) > 0.5 || Math.abs(state.ball.vy) > 0.5 || (Math.abs(ball.vx) < 3 && Math.abs(ball.vy) < 3)) {
-                    ball.vx = state.ball.vx; ball.vy = state.ball.vy;
-                }
+            if (ball.clientAuthTimer <= 0 && state.ball.vx !== undefined && state.ball.vy !== undefined) {
+                // Trust server velocity ONLY if we aren't overriding it locally with a fresh shot!
+                ball.vx = state.ball.vx; ball.vy = state.ball.vy;
             }
         }
 
@@ -1244,6 +1250,7 @@
                                     if (ball.possessedBy === opp && this.stealCooldown === 0 && opp.invincibleCooldown === 0) {
                                         ball.possessedBy = this; opp.stealCooldown = 60; this.invincibleCooldown = 18; lastTouchedBy = this.team; audio.playSteal();
                                         window.pendingNetworkSteal = opp.networkId; 
+                                        if (isMultiplayer && !isHost) ball.clientAuthTimer = 30; // Protect local steal prediction!
                                     } else if (ball.possessedBy === this && opp.stealCooldown === 0 && this.invincibleCooldown === 0) {
                                         ball.possessedBy = opp; this.stealCooldown = 60; opp.invincibleCooldown = 18; lastTouchedBy = opp.team; audio.playSteal();
                                         window.pendingNetworkLost = opp.networkId;  
@@ -1582,9 +1589,12 @@
         constructor(x, y) {
             this.x = x; this.y = y; this.radius = 6; this.vx = 0; this.vy = 0; this.friction = 0.96;
             this.possessedBy = null; this.possessionCooldown = 0; this.targetX = x; this.targetY = y;
+            this.clientAuthTimer = 0; // NEW: Protects local client physics from being overwritten by older server packets
             this.mesh = new THREE.Mesh(new THREE.IcosahedronGeometry(this.radius, 1), new THREE.MeshLambertMaterial({ color: 0xffffff })); this.mesh.castShadow = true; scene.add(this.mesh); this.updateMeshPosition();
         }
         update() {
+            if (this.clientAuthTimer > 0) this.clientAuthTimer--;
+
             if (isMultiplayer && !isHost) {
                 if (this.possessionCooldown > 0) this.possessionCooldown--;
 
@@ -1595,9 +1605,12 @@
                     this.vx = this.possessedBy.vx; this.vy = this.possessedBy.vy;
                 } else {
                     this.x += this.vx; this.y += this.vy; this.vx *= this.friction; this.vy *= this.friction;
-                    const dx = this.targetX - this.x; const dy = this.targetY - this.y;
-                    this.x += dx * 0.15; this.y += dy * 0.15; 
-                    if (dx*dx + dy*dy > 2500) { this.x = this.targetX; this.y = this.targetY; }
+                    
+                    if (this.clientAuthTimer <= 0) {
+                        const dx = this.targetX - this.x; const dy = this.targetY - this.y;
+                        this.x += dx * 0.1; this.y += dy * 0.1; // Smooth correction to server trajectory
+                        if (dx*dx + dy*dy > 4900) { this.x = this.targetX; this.y = this.targetY; } // Snap if wildly out of sync
+                    }
                 }
                 
                 this.updateMeshPosition();
@@ -1644,6 +1657,7 @@
         if (!ball || ball.possessedBy !== entity) return;
         ball.possessedBy = null; ball.possessionCooldown = 20; const passPower = 6.5; 
         ball.vx = Math.cos(entity.facingAngle) * passPower + entity.vx * 0.5; ball.vy = Math.sin(entity.facingAngle) * passPower + entity.vy * 0.5; audio.playShoot();
+        if (isMultiplayer && !isHost && entity.ownerUid === localSessionId) ball.clientAuthTimer = 30;
     }
 
     function shootBall(entity, bonusPower = 0) {
@@ -1668,9 +1682,11 @@
             const passAngle = Math.atan2(dy, dx); 
             const passPower = Math.min(9.5, Math.max(6.0, dist * 0.04)) + (bonusPower * 0.3); 
             ball.vx = Math.cos(passAngle) * passPower + entity.vx * 0.3; ball.vy = Math.sin(passAngle) * passPower + entity.vy * 0.3; audio.playShoot();
+            if (isMultiplayer && !isHost && entity.ownerUid === localSessionId) ball.clientAuthTimer = 30; // Protect local trajectory
         } else {
             const shotPower = 8.5 + (bonusPower * 0.6); 
             ball.vx = Math.cos(entity.facingAngle) * shotPower + entity.vx * 0.5; ball.vy = Math.sin(entity.facingAngle) * shotPower + entity.vy * 0.5; audio.playShoot();
+            if (isMultiplayer && !isHost && entity.ownerUid === localSessionId) ball.clientAuthTimer = 30; // Protect local trajectory
         }
     }
 
@@ -1684,7 +1700,10 @@
             ball.possessedBy = entity; 
             entity.invincibleCooldown = 18; 
             audio.playDribble(); 
-            if (isMultiplayer && !isHost && entity.ownerUid === localSessionId) window.pendingNetworkGrab = true;
+            if (isMultiplayer && !isHost && entity.ownerUid === localSessionId) {
+                window.pendingNetworkGrab = true;
+                ball.clientAuthTimer = 30; // Protect local possession claim
+            }
         } 
         else { 
             ball.possessedBy = null; ball.possessionCooldown = 15; ball.y = entity.y + entity.size/2 + ball.radius;
