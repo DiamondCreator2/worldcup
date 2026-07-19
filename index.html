@@ -614,6 +614,7 @@
     
     // Replaced transient variables with a robust Action Queue system
     window.pendingAction = null; 
+    window.hasSentGoal = false;
     let currentAnnouncement = null; 
     let lastAnnId = 0;
 
@@ -1303,7 +1304,7 @@
                                     if (ball.possessedBy === opp && this.stealCooldown === 0 && opp.invincibleCooldown === 0) {
                                         ball.possessedBy = this; opp.stealCooldown = 90; this.invincibleCooldown = 45; lastTouchedBy = this.team; audio.playSteal();
                                         window.pendingAction = { t: 'steal', tid: opp.networkId, id: Date.now() }; 
-                                        if (isMultiplayer && !isHost) ball.clientAuthTimer = 45; 
+                                        if (isMultiplayer && !isHost) ball.clientAuthTimer = 90; 
                                     } 
                                 }
                             }
@@ -1389,8 +1390,18 @@
                         if (inputs.act && inputs.act.id !== this.lastActionId) {
                             this.lastActionId = inputs.act.id;
                             if (inputs.act.t === 'fire') {
-                                if (ax !== 0 || ay !== 0) this.facingAngle = Math.atan2(ay, ax);
+                                if (inputs.act.a !== undefined) this.facingAngle = inputs.act.a;
+                                if (inputs.act.x !== undefined) this.x = inputs.act.x;
+                                if (inputs.act.y !== undefined) this.y = inputs.act.y;
+                                
                                 shootBall(this, inputs.act.c);
+                                
+                                if (inputs.act.bx !== undefined && ball) {
+                                    ball.x = inputs.act.bx; ball.y = inputs.act.by;
+                                    ball.vx = inputs.act.bvx; ball.vy = inputs.act.bvy;
+                                    if (inputs.act.tid) lastTouchedBy = TEAMS.find(t => t.id === inputs.act.tid) || this.team;
+                                }
+                                this.isCharging = false; this.chargeAmount = 0;
                             } else if (inputs.act.t === 'steal') {
                                 let target = entities.find(e => e.networkId === inputs.act.tid);
                                 if (target && ball && ball.possessedBy === target && target.invincibleCooldown === 0) {
@@ -1398,6 +1409,11 @@
                                 }
                             } else if (inputs.act.t === 'grab') {
                                 if (ball && !ball.possessedBy) { ball.possessedBy = this; this.invincibleCooldown = 45; lastTouchedBy = this.team; }
+                            } else if (inputs.act.t === 'goal') {
+                                if (gameState === 'playing') {
+                                    if (inputs.act.tid) lastTouchedBy = TEAMS.find(t => t.id === inputs.act.tid) || this.team;
+                                    handleGoal();
+                                }
                             }
                         }
                     }
@@ -1449,13 +1465,18 @@
                     } else {
                         shootBall(this, this.chargeAmount);
                         if (isMultiplayer && !isHost) {
-                            window.pendingAction = { t: 'fire', c: this.chargeAmount, id: Date.now() };
+                            window.pendingAction = { 
+                                t: 'fire', c: this.chargeAmount, id: Date.now(),
+                                x: this.x, y: this.y, a: this.facingAngle,
+                                bx: ball.x, by: ball.y, bvx: ball.vx, bvy: ball.vy,
+                                tid: this.team.id
+                            };
                         }
                     }
                     this.chargeAmount = 0;
                 }
             } else if (isMultiplayer && isHost && this.ownerUid !== localSessionId) {
-                // Host purely mirrors the client's charging state visually
+                // Host mirrors the client's charging state visually
             }
         }
 
@@ -1658,6 +1679,22 @@
                         } else if (speed >= 3) {
                             this.x += dx * 0.02; this.y += dy * 0.02;
                         }
+                    } else {
+                        // Apply local wall/goal physics during Client Auth!
+                        if (this.x < this.radius) { this.x = this.radius; this.vx *= -0.8; audio.playDribble(); }
+                        if (this.x > V_WIDTH - this.radius) { this.x = V_WIDTH - this.radius; this.vx *= -0.8; audio.playDribble(); }
+                        if (this.y > V_HEIGHT - this.radius) { this.y = V_HEIGHT - this.radius; this.vy *= -0.8; audio.playDribble(); }
+                        
+                        const goalLeft = V_WIDTH/2 - 60; const goalRight = V_WIDTH/2 + 60;
+                        if (this.y < this.radius) {
+                            if (this.x > goalLeft && this.x < goalRight) {
+                                if (gameState === 'playing' && !window.hasSentGoal) {
+                                    window.pendingAction = { t: 'goal', tid: lastTouchedBy ? lastTouchedBy.id : null, id: Date.now() };
+                                    window.hasSentGoal = true;
+                                }
+                                if (this.y < -12) { this.y = -12; this.vy *= -0.5; }
+                            } else { this.y = this.radius; this.vy *= -0.8; }
+                        }
                     }
                 }
                 
@@ -1703,14 +1740,16 @@
 
     function passBall(entity) {
         if (!ball || ball.possessedBy !== entity) return;
+        lastTouchedBy = entity.team; // Ensure credit is tracked!
         ball.possessedBy = null; ball.possessionCooldown = 30; const passPower = 6.5; 
         ball.vx = Math.cos(entity.facingAngle) * passPower + entity.vx * 0.5; ball.vy = Math.sin(entity.facingAngle) * passPower + entity.vy * 0.5; audio.playShoot();
         ball.lastShotTime = Date.now();
-        if (isMultiplayer && !isHost && entity.ownerUid === localSessionId) ball.clientAuthTimer = 45;
+        if (isMultiplayer && !isHost && entity.ownerUid === localSessionId) ball.clientAuthTimer = 90;
     }
 
     function shootBall(entity, bonusPower = 0) {
         if (!ball || ball.possessedBy !== entity) return;
+        lastTouchedBy = entity.team; // Ensure credit is tracked!
         let bestTeammate = null; let maxDot = 0.707; 
         const facingX = Math.cos(entity.facingAngle); const facingY = Math.sin(entity.facingAngle);
 
@@ -1732,12 +1771,12 @@
             const passPower = Math.min(9.5, Math.max(6.0, dist * 0.04)) + (bonusPower * 0.3); 
             ball.vx = Math.cos(passAngle) * passPower + entity.vx * 0.3; ball.vy = Math.sin(passAngle) * passPower + entity.vy * 0.3; audio.playShoot();
             ball.lastShotTime = Date.now();
-            if (isMultiplayer && !isHost && entity.ownerUid === localSessionId) ball.clientAuthTimer = 45; 
+            if (isMultiplayer && !isHost && entity.ownerUid === localSessionId) ball.clientAuthTimer = 90; 
         } else {
             const shotPower = 8.5 + (bonusPower * 0.6); 
             ball.vx = Math.cos(entity.facingAngle) * shotPower + entity.vx * 0.5; ball.vy = Math.sin(entity.facingAngle) * shotPower + entity.vy * 0.5; audio.playShoot();
             ball.lastShotTime = Date.now();
-            if (isMultiplayer && !isHost && entity.ownerUid === localSessionId) ball.clientAuthTimer = 45; 
+            if (isMultiplayer && !isHost && entity.ownerUid === localSessionId) ball.clientAuthTimer = 90; 
         }
     }
 
@@ -1753,7 +1792,7 @@
             audio.playDribble(); 
             if (isMultiplayer && !isHost && entity.ownerUid === localSessionId) {
                 window.pendingAction = { t: 'grab', id: Date.now() }; 
-                ball.clientAuthTimer = 45; 
+                ball.clientAuthTimer = 90; 
             }
         } 
         else { 
@@ -1766,6 +1805,7 @@
     // --- TOURNAMENT LOGIC ---
     function startRound() {
         clearEntities();
+        window.hasSentGoal = false;
         
         // INSTANTLY RESET CAMERA FOR NEW KICK-OFF
         camera.position.set(0, 420, 380);
