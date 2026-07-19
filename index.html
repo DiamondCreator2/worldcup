@@ -611,10 +611,9 @@
     let clientInputs = {};
     let lastNetworkSync = 0;
     let lastInputSync = 0;
-    window.pendingNetworkShoot = false; 
-    window.pendingNetworkFire = null;
-    window.pendingNetworkSteal = null;  
-    window.pendingNetworkGrab = false;  
+    
+    // Replaced transient variables with a robust Action Queue system
+    window.pendingAction = null; 
     let currentAnnouncement = null; 
     let lastAnnId = 0;
 
@@ -1003,7 +1002,7 @@
             et: eliminatedTeams.map(t => t.id),
             ltb: lastTouchedBy ? lastTouchedBy.id : null, 
             bp: (ball && ball.possessedBy) ? ball.possessedBy.networkId : null, 
-            ball: ball ? { x: Math.round(ball.x), y: Math.round(ball.y), vx: parseFloat(ball.vx.toFixed(2)), vy: parseFloat(ball.vy.toFixed(2)) } : null,
+            ball: ball ? { x: Math.round(ball.x), y: Math.round(ball.y), vx: parseFloat(ball.vx.toFixed(2)), vy: parseFloat(ball.vy.toFixed(2)), ls: ball.lastShotTime || 0 } : null,
             entities: entities.map(e => ({ 
                 id: e.networkId, x: Math.round(e.x), y: Math.round(e.y), a: parseFloat(e.facingAngle.toFixed(2)), 
                 jz: Math.round(e.jumpZ || 0), ca: parseFloat((e.chargeAmount || 0).toFixed(1)), ic: e.invincibleCooldown || 0 
@@ -1036,28 +1035,32 @@
             startRound(); 
         }
 
+        if (state.ball && ball) {
+            // Check for explicit shot timestamps to instantly update visual trajectory
+            if (state.ball.ls && state.ball.ls !== ball.localLastShotTime) {
+                ball.localLastShotTime = state.ball.ls;
+                if (ball.clientAuthTimer <= 0) { 
+                    ball.possessedBy = null;
+                    ball.x = state.ball.x; ball.y = state.ball.y;
+                    ball.vx = state.ball.vx; ball.vy = state.ball.vy;
+                    audio.playShoot();
+                    ball.clientAuthTimer = 45; // Protect client physics trajectory
+                }
+            }
+        }
+
         if (state.bp !== undefined && ball) {
             let previousPossessor = ball.possessedBy;
             let newPossessor = state.bp === null ? null : entities.find(e => e.networkId === state.bp);
 
-            // Client-side prediction protection
             if (ball.clientAuthTimer > 0 && ball.possessedBy && ball.possessedBy.ownerUid === localSessionId) {
                 // Ignore server possession briefly if we just grabbed/stole it locally
             } else {
                 if (newPossessor !== ball.possessedBy) {
                     ball.possessedBy = newPossessor;
-
-                    if (newPossessor === null && previousPossessor) {
-                        // The ball was just shot or passed!
-                        ball.possessionCooldown = 20;
-                        if (previousPossessor.ownerUid !== localSessionId) audio.playShoot();
-                        
-                        // Snap exact initial shot parameters
-                        if (state.ball) {
-                            ball.x = state.ball.x; ball.y = state.ball.y;
-                            if (state.ball.vx !== undefined) ball.vx = state.ball.vx;
-                            if (state.ball.vy !== undefined) ball.vy = state.ball.vy;
-                        }
+                    
+                    if (newPossessor && previousPossessor && newPossessor !== previousPossessor && newPossessor.ownerUid !== localSessionId) {
+                        audio.playSteal();
                     } else if (newPossessor && newPossessor.ownerUid !== localSessionId) {
                         audio.playDribble();
                     }
@@ -1068,7 +1071,7 @@
         if(state.ball && ball) { 
             ball.targetX = state.ball.x; ball.targetY = state.ball.y; 
             if (ball.clientAuthTimer <= 0 && state.ball.vx !== undefined && state.ball.vy !== undefined) {
-                // If the ball is moving fast on the server, trust its velocity
+                // Trust server velocity if moving fast
                 if (Math.abs(state.ball.vx) > 1 || Math.abs(state.ball.vy) > 1) {
                     ball.vx = state.ball.vx; ball.vy = state.ball.vy;
                 }
@@ -1104,6 +1107,7 @@
             
             let localPlayer = entities.find(e => e.ownerUid === localSessionId);
             let isChargingLocally = localPlayer ? localPlayer.isCharging : false;
+            let chargeLocally = localPlayer ? localPlayer.chargeAmount : 0;
             let td = 0;
             if (isChargingLocally && joystickVector.x === 0 && joystickVector.y === 0) {
                 dx = 0;
@@ -1111,13 +1115,13 @@
                 if (kRight) td = 1;
             }
             
-            let pShoot = keys[' '] || window.pendingNetworkShoot;
-            let pFire = window.pendingNetworkFire !== undefined ? window.pendingNetworkFire : null;
-            let pSteal = window.pendingNetworkSteal !== undefined ? window.pendingNetworkSteal : null;
-            let pGrab = window.pendingNetworkGrab || false;
+            let payload = { dx, dy, ax: aimVector.x, ay: aimVector.y, td, charging: isChargingLocally, ca: chargeLocally };
+            if (window.pendingAction) {
+                payload.act = window.pendingAction;
+                window.pendingAction = null; // Clear queue!
+            }
 
-            window.pendingNetworkShoot = false; window.pendingNetworkFire = null; window.pendingNetworkSteal = null; window.pendingNetworkGrab = false;
-            try { await set(ref(db, 'parties/' + partyCode + '/inputs/' + localSessionId), { dx: dx, dy: dy, s: pShoot, fire: pFire, steal: pSteal, grab: pGrab, ax: aimVector.x, ay: aimVector.y, td: td }); } catch(e){}
+            try { await set(ref(db, 'parties/' + partyCode + '/inputs/' + localSessionId), payload); } catch(e){}
         }
     }
 
@@ -1216,6 +1220,7 @@
             this.jumpZ = 0; this.vz = 0; this.isAiming = false;
             this.isCharging = false; this.chargeAmount = 0; 
             this.invincibleCooldown = 0;
+            this.lastActionId = 0;
 
             this.mesh = this.createMesh(); scene.add(this.mesh); this.updateMeshPosition();
         }
@@ -1297,10 +1302,9 @@
                                 if (ball && this.team !== opp.team && !this.isGoalie && !opp.isGoalie) {
                                     if (ball.possessedBy === opp && this.stealCooldown === 0 && opp.invincibleCooldown === 0) {
                                         ball.possessedBy = this; opp.stealCooldown = 90; this.invincibleCooldown = 45; lastTouchedBy = this.team; audio.playSteal();
-                                        window.pendingNetworkSteal = opp.networkId; 
+                                        window.pendingAction = { t: 'steal', tid: opp.networkId, id: Date.now() }; 
                                         if (isMultiplayer && !isHost) ball.clientAuthTimer = 45; 
                                     } 
-                                    // Removed client-side auto-loss block! Only Server dictates when a client loses the ball to prevent teleporting jitter.
                                 }
                             }
                         }
@@ -1379,24 +1383,22 @@
                         dx = inputs.dx; dy = inputs.dy; shootKey = inputs.s; 
                         if (inputs.ax !== undefined) { ax = inputs.ax; ay = inputs.ay; }
                         if (inputs.td !== undefined) { td = inputs.td; }
+                        this.isCharging = inputs.charging || false;
+                        this.chargeAmount = inputs.ca || 0;
                         
-                        if (inputs.fire !== undefined && inputs.fire !== null) {
-                            if (inputs.ax !== 0 || inputs.ay !== 0) this.facingAngle = Math.atan2(inputs.ay, inputs.ax);
-                            shootBall(this, inputs.fire);
-                            this.isCharging = false; this.chargeAmount = 0;
-                            inputs.fire = null; 
-                        }
-
-                        if (inputs.steal !== undefined && inputs.steal !== null) {
-                            let target = entities.find(e => e.networkId === inputs.steal);
-                            if (target && ball && ball.possessedBy === target && target.invincibleCooldown === 0) {
-                                ball.possessedBy = this; target.stealCooldown = 90; this.invincibleCooldown = 45; lastTouchedBy = this.team;
+                        if (inputs.act && inputs.act.id !== this.lastActionId) {
+                            this.lastActionId = inputs.act.id;
+                            if (inputs.act.t === 'fire') {
+                                if (ax !== 0 || ay !== 0) this.facingAngle = Math.atan2(ay, ax);
+                                shootBall(this, inputs.act.c);
+                            } else if (inputs.act.t === 'steal') {
+                                let target = entities.find(e => e.networkId === inputs.act.tid);
+                                if (target && ball && ball.possessedBy === target && target.invincibleCooldown === 0) {
+                                    ball.possessedBy = this; target.stealCooldown = 90; this.invincibleCooldown = 45; lastTouchedBy = this.team;
+                                }
+                            } else if (inputs.act.t === 'grab') {
+                                if (ball && !ball.possessedBy) { ball.possessedBy = this; this.invincibleCooldown = 45; lastTouchedBy = this.team; }
                             }
-                            inputs.steal = null; 
-                        }
-                        if (inputs.grab) {
-                            if (ball && !ball.possessedBy) { ball.possessedBy = this; this.invincibleCooldown = 45; lastTouchedBy = this.team; }
-                            inputs.grab = false; 
                         }
                     }
                 }
@@ -1434,26 +1436,26 @@
             if (!isMultiplayer || this.ownerUid === localSessionId) {
                 if (shootKey) {
                     if (!this.isCharging) { this.isCharging = true; this.chargeAmount = 0; }
-                    this.chargeAmount += 0.4; 
-                    if (this.chargeAmount > 10) this.chargeAmount = 10;
+                    if (window.isMobileAiming) {
+                        this.chargeAmount = window.mobileAimMag * 10; 
+                    } else {
+                        this.chargeAmount += 0.4; 
+                        if (this.chargeAmount > 10) this.chargeAmount = 10;
+                    }
                 } else if (!shootKey && this.isCharging) {
                     this.isCharging = false;
                     if (window.cancelShoot) {
                         window.cancelShoot = false; 
                     } else {
                         shootBall(this, this.chargeAmount);
-                        if (isMultiplayer && !isHost) window.pendingNetworkFire = this.chargeAmount;
+                        if (isMultiplayer && !isHost) {
+                            window.pendingAction = { t: 'fire', c: this.chargeAmount, id: Date.now() };
+                        }
                     }
                     this.chargeAmount = 0;
                 }
             } else if (isMultiplayer && isHost && this.ownerUid !== localSessionId) {
-                if (shootKey) {
-                    if (!this.isCharging) { this.isCharging = true; this.chargeAmount = 0; }
-                    this.chargeAmount += 0.4;
-                    if (this.chargeAmount > 10) this.chargeAmount = 10;
-                } else {
-                    this.isCharging = false; this.chargeAmount = 0;
-                }
+                // Host purely mirrors the client's charging state visually
             }
         }
 
@@ -1627,7 +1629,7 @@
         constructor(x, y) {
             this.x = x; this.y = y; this.radius = 6; this.vx = 0; this.vy = 0; this.friction = 0.96;
             this.possessedBy = null; this.possessionCooldown = 0; this.targetX = x; this.targetY = y;
-            this.clientAuthTimer = 0; 
+            this.clientAuthTimer = 0; this.lastShotTime = 0; this.localLastShotTime = 0;
             this.mesh = new THREE.Mesh(new THREE.IcosahedronGeometry(this.radius, 1), new THREE.MeshLambertMaterial({ color: 0xffffff })); this.mesh.castShadow = true; scene.add(this.mesh); this.updateMeshPosition();
         }
         update() {
@@ -1649,7 +1651,6 @@
                         let dist = Math.sqrt(dx*dx + dy*dy);
                         let speed = Math.sqrt(this.vx*this.vx + this.vy*this.vy);
 
-                        // Smooth interpolation that respects high-speed trajectories
                         if (dist > 150) {
                             this.x = this.targetX; this.y = this.targetY; 
                         } else if (dist > 10 && speed < 3) {
@@ -1704,6 +1705,7 @@
         if (!ball || ball.possessedBy !== entity) return;
         ball.possessedBy = null; ball.possessionCooldown = 30; const passPower = 6.5; 
         ball.vx = Math.cos(entity.facingAngle) * passPower + entity.vx * 0.5; ball.vy = Math.sin(entity.facingAngle) * passPower + entity.vy * 0.5; audio.playShoot();
+        ball.lastShotTime = Date.now();
         if (isMultiplayer && !isHost && entity.ownerUid === localSessionId) ball.clientAuthTimer = 45;
     }
 
@@ -1729,10 +1731,12 @@
             const passAngle = Math.atan2(dy, dx); 
             const passPower = Math.min(9.5, Math.max(6.0, dist * 0.04)) + (bonusPower * 0.3); 
             ball.vx = Math.cos(passAngle) * passPower + entity.vx * 0.3; ball.vy = Math.sin(passAngle) * passPower + entity.vy * 0.3; audio.playShoot();
+            ball.lastShotTime = Date.now();
             if (isMultiplayer && !isHost && entity.ownerUid === localSessionId) ball.clientAuthTimer = 45; 
         } else {
             const shotPower = 8.5 + (bonusPower * 0.6); 
             ball.vx = Math.cos(entity.facingAngle) * shotPower + entity.vx * 0.5; ball.vy = Math.sin(entity.facingAngle) * shotPower + entity.vy * 0.5; audio.playShoot();
+            ball.lastShotTime = Date.now();
             if (isMultiplayer && !isHost && entity.ownerUid === localSessionId) ball.clientAuthTimer = 45; 
         }
     }
@@ -1748,13 +1752,14 @@
             entity.invincibleCooldown = 45; 
             audio.playDribble(); 
             if (isMultiplayer && !isHost && entity.ownerUid === localSessionId) {
-                window.pendingNetworkGrab = true;
+                window.pendingAction = { t: 'grab', id: Date.now() }; 
                 ball.clientAuthTimer = 45; 
             }
         } 
         else { 
             ball.possessedBy = null; ball.possessionCooldown = 15; ball.y = entity.y + entity.size/2 + ball.radius;
             ball.vy = Math.abs(ball.vy) * 0.5 + 4; ball.vx = (Math.random() - 0.5) * 6 + (ball.vx * -0.5); audio.playShoot(); 
+            ball.lastShotTime = Date.now();
         }
     }
 
