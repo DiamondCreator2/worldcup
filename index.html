@@ -1787,7 +1787,9 @@
     
     function triggerGameOver(winnerTeam, fromNetwork = false) { 
         if (isMultiplayer && !isHost && !fromNetwork) return;
-        gameState = 'gameover'; const winnerScreen = document.getElementById('game-over-screen'); winnerScreen.classList.remove('hidden'); document.getElementById('winner-text').innerText = `${winnerTeam.name} WINS!`; document.getElementById('winner-text').style.color = winnerTeam.color1; document.getElementById('scorer-text').innerText = (winnerTeam.id === playerTeam.id) ? "You are the ultimate champion!" : "You were eliminated."; 
+        gameState = 'gameover'; 
+        if (isMultiplayer && isHost) pushNetworkState(); // Force final game-over state to clients!
+        const winnerScreen = document.getElementById('game-over-screen'); winnerScreen.classList.remove('hidden'); document.getElementById('winner-text').innerText = `${winnerTeam.name} WINS!`; document.getElementById('winner-text').style.color = winnerTeam.color1; document.getElementById('scorer-text').innerText = (playerTeam && winnerTeam.id === playerTeam.id) ? "You are the ultimate champion!" : "You were eliminated."; 
     }
     
     window.resetToMenu = () => { gameState = 'menu'; document.getElementById('game-over-screen').classList.add('hidden'); document.getElementById('menu-screen').classList.remove('hidden'); document.getElementById('leaderboard').classList.add('hidden'); document.getElementById('top-right-team').classList.remove('hidden'); clearEntities(); window.isPaused = false; };
@@ -1864,9 +1866,8 @@
             if (ball || localPlayer) {
                 const t = Math.max(0, Math.min(1, focusY / V_HEIGHT)); 
                 
-                // Add a native zoom-out offset for mobile screens to prevent cutting off the edges
-                let isTouch = ('ontouchstart' in window || navigator.maxTouchPoints > 0);
-                let mobileZoom = isTouch ? 140 : 0; 
+                // Reverted mobile zoom to stay nice and close to the action!
+                let mobileZoom = 0; 
                 
                 targetCamY = 220 + (t * 200) + distOffset + mobileZoom; 
                 targetCamZ = 180 + (t * 200) + (distOffset * 0.8) + mobileZoom; 
