@@ -1866,11 +1866,13 @@
             if (ball || localPlayer) {
                 const t = Math.max(0, Math.min(1, focusY / V_HEIGHT)); 
                 
-                // Reverted mobile zoom to stay nice and close to the action!
-                let mobileZoom = 0; 
+                // Detect mobile/touch devices and pull the camera dramatically closer
+                let isTouch = ('ontouchstart' in window || navigator.maxTouchPoints > 0);
+                let mobileZoomY = isTouch ? -130 : 0; // Drops camera closer to the ground
+                let mobileZoomZ = isTouch ? -120 : 0; // Pushes camera forward
                 
-                targetCamY = 220 + (t * 200) + distOffset + mobileZoom; 
-                targetCamZ = 180 + (t * 200) + (distOffset * 0.8) + mobileZoom; 
+                targetCamY = 220 + (t * 200) + distOffset + mobileZoomY; 
+                targetCamZ = 180 + (t * 200) + (distOffset * 0.8) + mobileZoomZ; 
                 targetLookZ = -80 + (t * 100) + (distOffset * 0.2); 
             }
             
