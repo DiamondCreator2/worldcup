@@ -858,7 +858,10 @@
             ltb: lastTouchedBy ? lastTouchedBy.id : null, 
             bp: (ball && ball.possessedBy) ? ball.possessedBy.networkId : null, 
             ball: ball ? { x: Math.round(ball.x), y: Math.round(ball.y), vx: parseFloat(ball.vx.toFixed(2)), vy: parseFloat(ball.vy.toFixed(2)) } : null,
-            entities: entities.map(e => ({ id: e.networkId, x: Math.round(e.x), y: Math.round(e.y), a: parseFloat(e.facingAngle.toFixed(2)), jz: Math.round(e.jumpZ || 0) })),
+            entities: entities.map(e => ({ 
+                id: e.networkId, x: Math.round(e.x), y: Math.round(e.y), a: parseFloat(e.facingAngle.toFixed(2)), 
+                jz: Math.round(e.jumpZ || 0), ca: parseFloat((e.chargeAmount || 0).toFixed(1)), ic: e.invincibleCooldown || 0 
+            })),
             ann: currentAnnouncement
         };
         try { await update(ref(db, 'parties/' + partyCode), { gameState: state }); } catch(e){}
@@ -916,7 +919,11 @@
         if(state.entities) {
             state.entities.forEach(netE => {
                 let localE = entities.find(e => e.networkId === netE.id);
-                if(localE) { localE.targetX = netE.x; localE.targetY = netE.y; localE.facingAngle = netE.a; localE.jumpZ = netE.jz || 0; }
+                if(localE) { 
+                    localE.targetX = netE.x; localE.targetY = netE.y; localE.facingAngle = netE.a; 
+                    localE.jumpZ = netE.jz || 0; localE.chargeAmount = netE.ca || 0; localE.isCharging = netE.ca > 0;
+                    localE.invincibleCooldown = netE.ic || 0;
+                }
             });
         }
     }
@@ -932,12 +939,13 @@
             if (joystickVector.x !== 0 || joystickVector.y !== 0) { dx = joystickVector.x; dy = joystickVector.y; }
             
             let pShoot = keys[' '] || window.pendingNetworkShoot;
+            let pFire = window.pendingNetworkFire !== undefined ? window.pendingNetworkFire : null;
             let pSteal = window.pendingNetworkSteal !== undefined ? window.pendingNetworkSteal : null;
             let pLost = window.pendingNetworkLost !== undefined ? window.pendingNetworkLost : null;
             let pGrab = window.pendingNetworkGrab || false;
 
-            window.pendingNetworkShoot = false; window.pendingNetworkSteal = null; window.pendingNetworkLost = null; window.pendingNetworkGrab = false;
-            try { await set(ref(db, 'parties/' + partyCode + '/inputs/' + localSessionId), { dx: dx, dy: dy, s: pShoot, steal: pSteal, lost: pLost, grab: pGrab, ax: aimVector.x, ay: aimVector.y }); } catch(e){}
+            window.pendingNetworkShoot = false; window.pendingNetworkFire = null; window.pendingNetworkSteal = null; window.pendingNetworkLost = null; window.pendingNetworkGrab = false;
+            try { await set(ref(db, 'parties/' + partyCode + '/inputs/' + localSessionId), { dx: dx, dy: dy, s: pShoot, fire: pFire, steal: pSteal, lost: pLost, grab: pGrab, ax: aimVector.x, ay: aimVector.y }); } catch(e){}
         }
     }
 
@@ -1030,6 +1038,8 @@
             this.facingAngle = -Math.PI / 2; this.stealCooldown = 0; 
             this.targetX = x; this.targetY = y; 
             this.jumpZ = 0; this.vz = 0; this.isAiming = false;
+            this.isCharging = false; this.chargeAmount = 0; // NEW CHARGE VARIABLES
+            this.invincibleCooldown = 0;
 
             this.mesh = this.createMesh(); scene.add(this.mesh); this.updateMeshPosition();
         }
@@ -1039,6 +1049,13 @@
             const shorts = new THREE.Mesh(new THREE.CylinderGeometry(5, 5, 8, 12), new THREE.MeshStandardMaterial({ color: this.team.color2, roughness: 0.7 })); shorts.position.y = 4; group.add(shorts);
             const shirt = new THREE.Mesh(new THREE.CylinderGeometry(5, 5, 10, 12), new THREE.MeshStandardMaterial({ color: this.team.color1, roughness: 0.7 })); shirt.position.y = 13; group.add(shirt);
             const head = new THREE.Mesh(new THREE.BoxGeometry(8, 8, 8), new THREE.MeshStandardMaterial({ color: 0xFFC1CC, roughness: 0.5 })); head.position.y = 22; group.add(head);
+
+            // Add the visible aiming laser path (Hidden by default)
+            const aimGeo = new THREE.BoxGeometry(2, 0.1, 60); aimGeo.translate(0, 0, 30);
+            const aimMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.6 });
+            this.aimLine = new THREE.Mesh(aimGeo, aimMat);
+            this.aimLine.position.y = 1; this.aimLine.visible = false;
+            group.add(this.aimLine);
 
             if (isMultiplayer) { 
                 let mColor = null; let showName = false; let nColor = '#ffffff';
@@ -1088,6 +1105,7 @@
             if (isMultiplayer && !isHost) {
                 if (this.ownerUid === localSessionId) {
                     if (this.stealCooldown > 0) this.stealCooldown--;
+                    if (this.invincibleCooldown > 0) this.invincibleCooldown--;
                     this.handleInput();
                     this.x += this.vx; this.y += this.vy;
                     this.vx *= this.friction; this.vy *= this.friction;
@@ -1106,11 +1124,11 @@
                                 this.y -= (dY/dist) * overlap * 0.2;
 
                                 if (ball && this.team !== opp.team && !this.isGoalie && !opp.isGoalie) {
-                                    if (ball.possessedBy === opp && this.stealCooldown === 0) {
-                                        ball.possessedBy = this; opp.stealCooldown = 60; lastTouchedBy = this.team; audio.playSteal();
+                                    if (ball.possessedBy === opp && this.stealCooldown === 0 && opp.invincibleCooldown === 0) {
+                                        ball.possessedBy = this; opp.stealCooldown = 60; this.invincibleCooldown = 18; lastTouchedBy = this.team; audio.playSteal();
                                         window.pendingNetworkSteal = opp.networkId; 
-                                    } else if (ball.possessedBy === this && opp.stealCooldown === 0) {
-                                        ball.possessedBy = opp; this.stealCooldown = 60; lastTouchedBy = opp.team; audio.playSteal();
+                                    } else if (ball.possessedBy === this && opp.stealCooldown === 0 && this.invincibleCooldown === 0) {
+                                        ball.possessedBy = opp; this.stealCooldown = 60; opp.invincibleCooldown = 18; lastTouchedBy = opp.team; audio.playSteal();
                                         window.pendingNetworkLost = opp.networkId;  
                                     }
                                 }
@@ -1133,6 +1151,7 @@
             }
 
             if (this.stealCooldown > 0) this.stealCooldown--;
+            if (this.invincibleCooldown > 0) this.invincibleCooldown--;
             this.x += this.vx; this.y += this.vy; this.vx *= this.friction; this.vy *= this.friction;
 
             if (this.x < this.size/2) this.x = this.size/2; if (this.x > V_WIDTH - this.size/2) this.x = V_WIDTH - this.size/2;
@@ -1158,6 +1177,17 @@
                     this.mesh.rotation.y = Math.PI/2 - this.facingAngle;
                 }
             }
+
+            // Update Laser Sight while charging
+            if (this.isCharging && ball && ball.possessedBy === this) {
+                this.aimLine.visible = true;
+                const scaleZ = 0.5 + (this.chargeAmount / 10) * 1.5; // Stretches out
+                this.aimLine.scale.set(1, 1, scaleZ);
+                const chargeRatio = this.chargeAmount / 10;
+                this.aimLine.material.color.setRGB(1, 1 - chargeRatio, 1 - chargeRatio); // Turns from White to Red
+            } else {
+                this.aimLine.visible = false;
+            }
         }
 
         handleInput() {
@@ -1174,22 +1204,31 @@
                     if (inputs) { 
                         dx = inputs.dx; dy = inputs.dy; shootKey = inputs.s; 
                         if (inputs.ax !== undefined) { ax = inputs.ax; ay = inputs.ay; }
+                        
+                        // Handle Remote Client's Explicit Shoot Trigger
+                        if (inputs.fire !== undefined && inputs.fire !== null) {
+                            if (inputs.ax !== 0 || inputs.ay !== 0) this.facingAngle = Math.atan2(inputs.ay, inputs.ax);
+                            shootBall(this, inputs.fire);
+                            this.isCharging = false; this.chargeAmount = 0;
+                            inputs.fire = null; // consume
+                        }
+
                         if (inputs.steal !== undefined && inputs.steal !== null) {
                             let target = entities.find(e => e.networkId === inputs.steal);
-                            if (target && ball && ball.possessedBy === target) {
-                                ball.possessedBy = this; target.stealCooldown = 60; lastTouchedBy = this.team;
+                            if (target && ball && ball.possessedBy === target && target.invincibleCooldown === 0) {
+                                ball.possessedBy = this; target.stealCooldown = 60; this.invincibleCooldown = 18; lastTouchedBy = this.team;
                             }
                             inputs.steal = null; 
                         }
                         if (inputs.lost !== undefined && inputs.lost !== null) {
                             let target = entities.find(e => e.networkId === inputs.lost);
-                            if (target && ball && ball.possessedBy === this) {
-                                ball.possessedBy = target; this.stealCooldown = 60; lastTouchedBy = target.team;
+                            if (target && ball && ball.possessedBy === this && this.invincibleCooldown === 0) {
+                                ball.possessedBy = target; this.stealCooldown = 60; target.invincibleCooldown = 18; lastTouchedBy = target.team;
                             }
                             inputs.lost = null; 
                         }
                         if (inputs.grab) {
-                            if (ball && !ball.possessedBy) { ball.possessedBy = this; lastTouchedBy = this.team; }
+                            if (ball && !ball.possessedBy) { ball.possessedBy = this; this.invincibleCooldown = 18; lastTouchedBy = this.team; }
                             inputs.grab = false; 
                         }
                     }
@@ -1211,15 +1250,31 @@
             if (dx !== 0 || dy !== 0) {
                 const len = Math.sqrt(dx*dx + dy*dy);
                 let currentSpeed = this.speed; if (ball && ball.possessedBy === this) currentSpeed *= 0.6; 
+                if (this.isCharging) currentSpeed *= 0.7; // Move slightly slower while charging a shot!
                 this.vx += (dx / len) * currentSpeed * 0.4; this.vy += (dy / len) * currentSpeed * 0.4;
             }
             
-            if (shootKey && (!isMultiplayer || this.ownerUid === localSessionId)) { 
-                shootBall(this); keys[' '] = false; 
-                if (isMultiplayer && !isHost) window.pendingNetworkShoot = true; 
-            }
-            else if (shootKey && isMultiplayer && isHost) { 
-                shootBall(this); if (clientInputs[this.ownerUid]) clientInputs[this.ownerUid].s = false; 
+            // CHARGE AND SHOOT LOGIC
+            if (!isMultiplayer || this.ownerUid === localSessionId) {
+                if (shootKey) {
+                    if (!this.isCharging) { this.isCharging = true; this.chargeAmount = 0; }
+                    this.chargeAmount += 0.4; // Charge rate
+                    if (this.chargeAmount > 10) this.chargeAmount = 10;
+                } else if (!shootKey && this.isCharging) {
+                    this.isCharging = false;
+                    shootBall(this, this.chargeAmount);
+                    if (isMultiplayer && !isHost) window.pendingNetworkFire = this.chargeAmount;
+                    this.chargeAmount = 0;
+                }
+            } else if (isMultiplayer && isHost && this.ownerUid !== localSessionId) {
+                // Host purely mirrors the client's charging state for visuals
+                if (shootKey) {
+                    if (!this.isCharging) { this.isCharging = true; this.chargeAmount = 0; }
+                    this.chargeAmount += 0.4;
+                    if (this.chargeAmount > 10) this.chargeAmount = 10;
+                } else {
+                    this.isCharging = false; this.chargeAmount = 0;
+                }
             }
         }
 
@@ -1456,7 +1511,8 @@
         ball.vx = Math.cos(entity.facingAngle) * passPower + entity.vx * 0.5; ball.vy = Math.sin(entity.facingAngle) * passPower + entity.vy * 0.5; audio.playShoot();
     }
 
-    function shootBall(entity) {
+    // Now accepts the bonusPower parameter from charging!
+    function shootBall(entity, bonusPower = 0) {
         if (!ball || ball.possessedBy !== entity) return;
         let bestTeammate = null; let maxDot = 0.707; 
         const facingX = Math.cos(entity.facingAngle); const facingY = Math.sin(entity.facingAngle);
@@ -1475,10 +1531,12 @@
         if (bestTeammate) {
             const targetX = bestTeammate.x + bestTeammate.vx * 15; const targetY = bestTeammate.y + bestTeammate.vy * 15;
             const dx = targetX - entity.x; const dy = targetY - entity.y; const dist = Math.sqrt(dx*dx + dy*dy);
-            const passAngle = Math.atan2(dy, dx); const passPower = Math.min(8.5, Math.max(6.0, dist * 0.04)); 
+            const passAngle = Math.atan2(dy, dx); 
+            const passPower = Math.min(9.5, Math.max(6.0, dist * 0.04)) + (bonusPower * 0.3); // Apply charge slightly to passes
             ball.vx = Math.cos(passAngle) * passPower + entity.vx * 0.3; ball.vy = Math.sin(passAngle) * passPower + entity.vy * 0.3; audio.playShoot();
         } else {
-            const shotPower = 8.5; ball.vx = Math.cos(entity.facingAngle) * shotPower + entity.vx * 0.5; ball.vy = Math.sin(entity.facingAngle) * shotPower + entity.vy * 0.5; audio.playShoot();
+            const shotPower = 8.5 + (bonusPower * 0.6); // Base 8.5, max 14.5 based on hold time
+            ball.vx = Math.cos(entity.facingAngle) * shotPower + entity.vx * 0.5; ball.vy = Math.sin(entity.facingAngle) * shotPower + entity.vy * 0.5; audio.playShoot();
         }
     }
 
@@ -1490,6 +1548,7 @@
         if (!entity.isGoalie) { 
             lastTouchedBy = entity.team; 
             ball.possessedBy = entity; 
+            entity.invincibleCooldown = 18;
             audio.playDribble(); 
             if (isMultiplayer && !isHost && entity.ownerUid === localSessionId) window.pendingNetworkGrab = true;
         } 
@@ -1630,8 +1689,12 @@
                                 if ((e1Remote && e2.ownerUid === 'AI') || (e2Remote && e1.ownerUid === 'AI')) skipHostSteal = true;
 
                                 if (!skipHostSteal) {
-                                    if (ball.possessedBy === e1 && e2.stealCooldown === 0 && !e2.isGoalie) { ball.possessedBy = e2; e1.stealCooldown = 60; lastTouchedBy = e2.team; audio.playSteal(); } 
-                                    else if (ball.possessedBy === e2 && e1.stealCooldown === 0 && !e1.isGoalie) { ball.possessedBy = e1; e2.stealCooldown = 60; lastTouchedBy = e1.team; audio.playSteal(); }
+                                    if (ball.possessedBy === e1 && e2.stealCooldown === 0 && !e2.isGoalie && e1.invincibleCooldown === 0) { 
+                                        ball.possessedBy = e2; e1.stealCooldown = 60; e2.invincibleCooldown = 18; lastTouchedBy = e2.team; audio.playSteal(); 
+                                    } 
+                                    else if (ball.possessedBy === e2 && e1.stealCooldown === 0 && !e1.isGoalie && e2.invincibleCooldown === 0) { 
+                                        ball.possessedBy = e1; e2.stealCooldown = 60; e1.invincibleCooldown = 18; lastTouchedBy = e1.team; audio.playSteal(); 
+                                    }
                                 }
                             }
                         }
@@ -1663,8 +1726,16 @@
     }
 
     // --- INPUT ---
-    window.addEventListener('keydown', (e) => { if (keys.hasOwnProperty(e.key)) keys[e.key] = true; });
-    window.addEventListener('keyup', (e) => { if (keys.hasOwnProperty(e.key)) keys[e.key] = false; });
+    // Caps Lock safe keyboard handlers
+    window.addEventListener('keydown', (e) => { 
+        let k = e.key; if (k && k.length === 1) k = k.toLowerCase();
+        if (keys.hasOwnProperty(k)) keys[k] = true; 
+        if (k === ' ') e.preventDefault(); // Prevent page scrolling on spacebar
+    });
+    window.addEventListener('keyup', (e) => { 
+        let k = e.key; if (k && k.length === 1) k = k.toLowerCase();
+        if (keys.hasOwnProperty(k)) keys[k] = false; 
+    });
 
     let leftTouchId = null; let rightTouchId = null;
     let leftBasePos = {x:0, y:0}; let rightBasePos = {x:0, y:0};
@@ -1725,8 +1796,8 @@
                     leftTouchId = null; lBase.style.display = 'none'; joystickVector = {x:0, y:0};
                 } else if (t.identifier === rightTouchId) {
                     rightTouchId = null; rBase.style.display = 'none';
-                    keys[' '] = true; // Trigger the shot
-                    setTimeout(() => { keys[' '] = false; aimVector = {x:0, y:0}; }, 50);
+                    keys[' '] = false; // RELEASE CHARGE (Triggers shot automatically)
+                    setTimeout(() => { aimVector = {x:0, y:0}; }, 50);
                 }
             }
         };
