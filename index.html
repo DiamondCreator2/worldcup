@@ -954,6 +954,17 @@
         try { await update(ref(db, 'parties/' + partyCode), { state: 'playing' }); } catch(e){}
     };
 
+    // ADDED: The missing helper function to prevent the client network crash!
+    const getTeamWithCustomName = (id) => {
+        let baseTeam = TEAMS.find(t => t.id === id);
+        if (!baseTeam) return null;
+        let t = {...baseTeam}; 
+        if (isMultiplayer && partyData && partyData.matchConfig && partyData.matchConfig.customNames && partyData.matchConfig.customNames[id]) {
+            t.name = partyData.matchConfig.customNames[id];
+        }
+        return t;
+    };
+
     function setupMultiplayerMatch() {
         document.getElementById('lobby-menu').classList.add('hidden');
         document.getElementById('leaderboard').classList.remove('hidden');
@@ -962,12 +973,13 @@
         safeTeams = []; eliminatedTeams = []; tournamentRound = 1; activeTeams = [];
         
         if (partyData && partyData.matchConfig) {
-            activeTeams = partyData.matchConfig.teams.map(id => TEAMS.find(t=>t.id===id))
+            // UPDATED: Now properly utilizes the custom names when setting up the match!
+            activeTeams = partyData.matchConfig.teams.map(id => getTeamWithCustomName(id))
                 .filter(t => partyData.matchConfig.assignments[t.id] && partyData.matchConfig.assignments[t.id].length > 0);
             
             for (let tid in partyData.matchConfig.assignments) {
                 if (partyData.matchConfig.assignments[tid].includes(localSessionId)) {
-                    playerTeam = TEAMS.find(t => t.id === tid);
+                    playerTeam = getTeamWithCustomName(tid);
                     break;
                 }
             }
