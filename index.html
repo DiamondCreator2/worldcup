@@ -1833,8 +1833,41 @@
 
         if (gameState !== 'menu' && gameState !== 'lobby') {
             let targetCamY = 420; let targetCamZ = 380; let targetLookZ = 20;
-            if (ball) { const t = Math.max(0, Math.min(1, ball.y / V_HEIGHT)); targetCamY = 220 + (t * 200); targetCamZ = 180 + (t * 200); targetLookZ = -80 + (t * 100); }
-            camera.position.y += (targetCamY - camera.position.y) * 0.04; camera.position.z += (targetCamZ - camera.position.z) * 0.04; currentLookZ += (targetLookZ - currentLookZ) * 0.04; camera.lookAt(0, 0, currentLookZ);
+            
+            let localPlayer = entities.find(e => e.ownerUid === localSessionId);
+            let focusY = V_HEIGHT / 2;
+            let distOffset = 0;
+
+            if (ball && localPlayer) {
+                // Focus on whichever is further down the field (closer to the goal at y=0)
+                focusY = Math.min(ball.y, localPlayer.y);
+                
+                // Calculate distance between player and ball to dynamically pull the camera back
+                let dx = ball.x - localPlayer.x;
+                let dy = ball.y - localPlayer.y;
+                distOffset = Math.min(250, Math.sqrt(dx*dx + dy*dy) * 0.6);
+            } else if (ball) {
+                focusY = ball.y;
+            } else if (localPlayer) {
+                focusY = localPlayer.y;
+            }
+
+            if (ball || localPlayer) {
+                const t = Math.max(0, Math.min(1, focusY / V_HEIGHT)); 
+                
+                // Add a native zoom-out offset for mobile screens to prevent cutting off the edges
+                let isTouch = ('ontouchstart' in window || navigator.maxTouchPoints > 0);
+                let mobileZoom = isTouch ? 140 : 0; 
+                
+                targetCamY = 220 + (t * 200) + distOffset + mobileZoom; 
+                targetCamZ = 180 + (t * 200) + (distOffset * 0.8) + mobileZoom; 
+                targetLookZ = -80 + (t * 100) + (distOffset * 0.2); 
+            }
+            
+            camera.position.y += (targetCamY - camera.position.y) * 0.04; 
+            camera.position.z += (targetCamZ - camera.position.z) * 0.04; 
+            currentLookZ += (targetLookZ - currentLookZ) * 0.04; 
+            camera.lookAt(0, 0, currentLookZ);
         } else {
             camera.position.set(0, 350, 300); camera.lookAt(0, 0, -50); currentLookZ = -50;
         }
