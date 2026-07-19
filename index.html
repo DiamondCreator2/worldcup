@@ -1766,6 +1766,11 @@
     // --- TOURNAMENT LOGIC ---
     function startRound() {
         clearEntities();
+        
+        // INSTANTLY RESET CAMERA FOR NEW KICK-OFF
+        camera.position.set(0, 420, 380);
+        currentLookZ = 20;
+
         const aiPersonalities = ['aggressive', 'camper', 'tactical'];
         let netId = 0;
         
