@@ -10,258 +10,98 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
         body, html {
-            margin: 0;
-            padding: 0;
-            width: 100%;
-            height: 100%;
-            background-color: #0a0f1a;
-            color: #fff;
-            font-family: 'Poppins', sans-serif;
-            overflow: hidden;
-            display: flex;
-            justify-content: center;
-            align-items: center;
+            margin: 0; padding: 0; width: 100%; height: 100%;
+            background-color: #0a0f1a; color: #fff; font-family: 'Poppins', sans-serif;
+            overflow: hidden; display: flex; justify-content: center; align-items: center;
         }
 
-        #game-container {
-            position: relative;
-            width: 100%;
-            height: 100%;
-            background-color: #0a0f1a;
-        }
+        #game-container { position: relative; width: 100%; height: 100%; background-color: #0a0f1a; }
+        canvas { display: block; width: 100%; height: 100%; }
 
-        canvas {
-            display: block;
-            width: 100%;
-            height: 100%;
-        }
-
-        /* Modern UI Overlays */
         .overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(10, 15, 26, 0.85);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            z-index: 10;
-            text-align: center;
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(10, 15, 26, 0.85); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            z-index: 10; text-align: center;
         }
 
-        .hidden {
-            display: none !important;
-        }
+        .hidden { display: none !important; }
 
         h1 {
-            color: #ffffff;
-            font-size: 48px;
-            font-weight: 900;
-            margin-bottom: 5px;
-            line-height: 1.2;
-            text-transform: uppercase;
-            letter-spacing: 2px;
+            color: #ffffff; font-size: 48px; font-weight: 900; margin-bottom: 5px;
+            line-height: 1.2; text-transform: uppercase; letter-spacing: 2px;
             text-shadow: 0 4px 20px rgba(255, 255, 255, 0.2);
         }
 
         p.subtitle {
-            font-size: 16px;
-            color: #a0aabf;
-            margin-bottom: 30px;
-            max-width: 80%;
-            line-height: 1.6;
-            font-weight: 400;
+            font-size: 16px; color: #a0aabf; margin-bottom: 30px; max-width: 80%;
+            line-height: 1.6; font-weight: 400;
         }
 
         .team-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 12px;
-            width: 90%;
-            max-width: 800px;
-            max-height: 60vh;
-            overflow-y: auto;
-            padding-right: 10px;
+            display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
+            width: 90%; max-width: 800px; max-height: 60vh; overflow-y: auto; padding-right: 10px;
         }
 
-        /* Custom Scrollbar for Grids */
         ::-webkit-scrollbar { width: 8px; }
         ::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.05); border-radius: 4px; }
         ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.3); border-radius: 4px; }
         ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.5); }
 
         button {
-            font-family: 'Poppins', sans-serif;
-            font-weight: 700;
-            padding: 16px 20px;
-            font-size: 14px;
-            cursor: pointer;
-            border: none;
-            border-bottom: 4px solid;
-            background: #1c2436;
-            color: #fff;
-            text-transform: uppercase;
-            border-radius: 8px;
-            transition: all 0.2s ease;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
+            font-family: 'Poppins', sans-serif; font-weight: 700; padding: 16px 20px;
+            font-size: 14px; cursor: pointer; border: none; border-bottom: 4px solid;
+            background: #1c2436; color: #fff; text-transform: uppercase; border-radius: 8px;
+            transition: all 0.2s ease; box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            display: flex; align-items: center; justify-content: center; gap: 8px;
         }
 
-        button:hover {
-            transform: translateY(-2px);
-            background: #2a354d;
-            box-shadow: 0 6px 12px rgba(0,0,0,0.4);
-        }
-        
-        button:active {
-            transform: translateY(2px);
-            border-bottom-width: 0px;
-            margin-top: 4px;
-        }
+        button:hover { transform: translateY(-2px); background: #2a354d; box-shadow: 0 6px 12px rgba(0,0,0,0.4); }
+        button:active { transform: translateY(2px); border-bottom-width: 0px; margin-top: 4px; }
 
         .btn-cancel { background: #3d1c1c; border-color: #ff4444; }
         .btn-cancel:hover { background: #5a2626; }
         .btn-play { background: #1c3d1f; border-color: #44ff44; margin-top: 15px; }
         .btn-play:hover { background: #265a2b; }
+        .btn-online { background: #1c2a3d; border-color: #4488ff; color: #4488ff; margin-top: 15px; grid-column: 1 / -1; }
 
-        /* Mode Selection Buttons */
-        .mode-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 15px;
-            width: 90%;
-            max-width: 600px;
-        }
+        .mode-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; width: 90%; max-width: 600px; }
 
-        /* Top Right Team Selector */
         #top-right-team {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            background: rgba(10, 15, 26, 0.85);
-            backdrop-filter: blur(8px);
-            border: 2px solid rgba(255, 255, 255, 0.2);
-            border-radius: 12px;
-            padding: 10px 15px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            cursor: pointer;
-            z-index: 20;
-            transition: all 0.2s;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            position: absolute; top: 20px; right: 20px;
+            background: rgba(10, 15, 26, 0.85); backdrop-filter: blur(8px);
+            border: 2px solid rgba(255, 255, 255, 0.2); border-radius: 12px;
+            padding: 10px 15px; display: flex; align-items: center; gap: 10px;
+            cursor: pointer; z-index: 20; transition: all 0.2s; box-shadow: 0 4px 15px rgba(0,0,0,0.5);
         }
         
-        #top-right-team:hover {
-            background: rgba(20, 30, 50, 0.95);
-            transform: scale(1.05);
-            border-color: #FFD700;
-        }
-
-        .tr-details {
-            display: flex;
-            flex-direction: column;
-            text-align: right;
-        }
+        #top-right-team:hover { background: rgba(20, 30, 50, 0.95); transform: scale(1.05); border-color: #FFD700; }
+        .tr-details { display: flex; flex-direction: column; text-align: right; }
         .tr-label { font-size: 10px; color: #a0aabf; font-weight: 700; text-transform: uppercase; }
         .tr-name { font-size: 14px; font-weight: 900; color: #fff; }
         .tr-edit { font-size: 12px; color: #FFD700; margin-left: 5px; }
 
-        /* Custom Match Menu */
         .modal-box {
-            background: rgba(15, 20, 35, 0.95);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 16px;
-            padding: 30px;
-            width: 90%;
-            max-width: 500px;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.8);
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
+            background: rgba(15, 20, 35, 0.95); border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px; padding: 30px; width: 90%; max-width: 500px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.8); display: flex; flex-direction: column; gap: 15px;
         }
-        .modal-box h2 { margin: 0 0 10px 0; color: #FFD700; font-size: 24px; text-transform: uppercase; }
+        .modal-box h2 { margin: 0 0 10px 0; color: #FFD700; font-size: 24px; text-transform: uppercase; text-align: center; }
         
-        .setting-row {
-            display: flex;
-            flex-direction: column;
-            text-align: left;
-            gap: 5px;
-        }
+        .setting-row { display: flex; flex-direction: column; text-align: left; gap: 5px; }
         .setting-row span { font-weight: 700; font-size: 14px; display: flex; justify-content: space-between; }
         .setting-row span .val { color: #FFD700; }
-        
-        input[type="range"] {
-            width: 100%;
-            accent-color: #FFD700;
-        }
+        input[type="range"], input[type="text"] { width: 100%; box-sizing: border-box; }
+        input[type="text"] { background: rgba(0,0,0,0.5); border: 1px solid #444; color: #fff; border-radius: 6px; }
+        input[type="text"]:focus { outline: none; border-color: #FFD700; }
 
-        #opponents-list {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-            margin-top: 10px;
-            max-height: 200px;
-            overflow-y: auto;
-            padding-right: 5px;
-        }
+        #opponents-list { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; max-height: 200px; overflow-y: auto; padding-right: 5px; }
+        .opp-btn { padding: 10px; font-size: 12px; border-bottom: 2px solid; background: #232c40; }
 
-        .opp-btn {
-            padding: 10px;
-            font-size: 12px;
-            border-bottom: 2px solid;
-            background: #232c40;
-        }
+        #ui-layer { position: absolute; top: 20px; left: 0; width: 100%; text-align: center; pointer-events: none; z-index: 5; font-size: 18px; font-weight: 700; text-shadow: 0 2px 4px rgba(0,0,0,0.8); white-space: pre-line; color: #ffffff; }
 
-        #ui-layer {
-            position: absolute;
-            top: 20px;
-            left: 0;
-            width: 100%;
-            text-align: center;
-            pointer-events: none;
-            z-index: 5;
-            font-size: 18px;
-            font-weight: 700;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
-            white-space: pre-line;
-            color: #ffffff;
-        }
-
-        /* Leaderboard */
-        #leaderboard {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            background: rgba(10, 15, 26, 0.75);
-            backdrop-filter: blur(8px);
-            padding: 15px;
-            border-radius: 12px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            z-index: 10;
-            min-width: 160px;
-            pointer-events: none;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
-        }
-
-        #leaderboard h3 {
-            margin: 0 0 10px 0;
-            font-size: 14px;
-            color: #FFD700;
-            text-transform: uppercase;
-            border-bottom: 1px solid rgba(255,255,255,0.2);
-            padding-bottom: 8px;
-            font-weight: 900;
-        }
-
+        #leaderboard { position: absolute; top: 20px; left: 20px; background: rgba(10, 15, 26, 0.75); backdrop-filter: blur(8px); padding: 15px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.1); z-index: 10; min-width: 160px; pointer-events: none; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
+        #leaderboard h3 { margin: 0 0 10px 0; font-size: 14px; color: #FFD700; text-transform: uppercase; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 8px; font-weight: 900; }
         #leaderboard-list { list-style: none; padding: 0; margin: 0; }
         .lb-team { display: flex; align-items: center; margin-bottom: 8px; font-size: 13px; font-weight: 700; text-transform: uppercase; transition: all 0.3s; }
         .lb-color { width: 14px; height: 14px; border-radius: 50%; margin-right: 10px; border: 1px solid rgba(255,255,255,0.5); box-shadow: 0 0 4px rgba(0,0,0,0.5); flex-shrink: 0;}
@@ -271,80 +111,23 @@
         .team-eliminated { color: #666666; text-decoration: line-through; }
         .team-eliminated .lb-color { filter: grayscale(100%); opacity: 0.4; }
 
-        /* Audio Button */
-        #audio-btn {
-            position: absolute;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(10, 15, 26, 0.85);
-            backdrop-filter: blur(8px);
-            border: 2px solid rgba(255, 255, 255, 0.2);
-            color: #fff;
-            padding: 8px 15px;
-            border-radius: 12px;
-            cursor: pointer;
-            z-index: 50;
-            font-size: 18px;
-            transition: all 0.2s;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
+        #audio-btn { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); background: rgba(10, 15, 26, 0.85); backdrop-filter: blur(8px); border: 2px solid rgba(255, 255, 255, 0.2); color: #fff; padding: 8px 15px; border-radius: 12px; cursor: pointer; z-index: 50; font-size: 18px; transition: all 0.2s; box-shadow: 0 4px 10px rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; }
         #audio-btn:hover { background: rgba(20, 30, 50, 0.95); border-color: #FFD700; transform: translateX(-50%) scale(1.05); }
 
-        /* Center Announcements */
-        #announcement-layer {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            text-align: center;
-            pointer-events: none;
-            z-index: 15;
-            text-shadow: 0 4px 15px rgba(0,0,0,0.8);
-        }
-
+        #announcement-layer { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; pointer-events: none; z-index: 15; text-shadow: 0 4px 15px rgba(0,0,0,0.8); }
         .pop-in { animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
         .fade-out { animation: fadeOut 0.5s forwards !important; }
         @keyframes popIn { 0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; } 100% { transform: translate(-50%, -50%) scale(1); opacity: 1; } }
         @keyframes fadeOut { 0% { opacity: 1; transform: translate(-50%, -50%) scale(1); } 100% { opacity: 0; transform: translate(-50%, -50%) scale(1.1); } }
 
-        /* Added white-space: pre-line to support the multi-line Welcome Message */
         #announcement-main { font-size: 64px; font-weight: 900; margin: 0; text-transform: uppercase; color: #fff; line-height: 1.1; white-space: pre-line; }
         #announcement-sub { font-size: 20px; color: #FFD700; margin-top: 10px; font-weight: 700; text-transform: uppercase; }
 
-        /* Mobile Controls */
-        #joystick-zone {
-            position: absolute;
-            bottom: 20px;
-            left: 20px;
-            width: 120px;
-            height: 120px;
-            border-radius: 50%;
-            background: rgba(255, 255, 255, 0.2);
-            border: 2px solid rgba(255,255,255,0.5);
-            z-index: 20;
-            display: none;
-            touch-action: none;
-        }
+        #joystick-zone { position: absolute; bottom: 20px; left: 20px; width: 120px; height: 120px; border-radius: 50%; background: rgba(255, 255, 255, 0.2); border: 2px solid rgba(255,255,255,0.5); z-index: 20; display: none; touch-action: none; }
+        #joystick-knob { position: absolute; top: 50%; left: 50%; width: 40px; height: 40px; background: rgba(255, 255, 255, 0.8); border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none; }
+        #shoot-btn { position: absolute; bottom: 40px; right: 40px; width: 80px; height: 80px; border-radius: 50%; background: rgba(255, 50, 50, 0.3); border: 2px solid rgba(255,255,255,0.6); backdrop-filter: blur(4px); z-index: 20; display: none; color: white; font-size: 14px; font-family: 'Poppins', sans-serif; font-weight: 700; line-height: 80px; text-align: center; user-select: none; touch-action: none; }
 
-        #joystick-knob {
-            position: absolute;
-            top: 50%; left: 50%; width: 40px; height: 40px;
-            background: rgba(255, 255, 255, 0.8); border-radius: 50%;
-            transform: translate(-50%, -50%); pointer-events: none;
-        }
-
-        #shoot-btn {
-            position: absolute;
-            bottom: 40px; right: 40px; width: 80px; height: 80px;
-            border-radius: 50%; background: rgba(255, 50, 50, 0.3); border: 2px solid rgba(255,255,255,0.6);
-            backdrop-filter: blur(4px); z-index: 20; display: none; color: white; font-size: 14px;
-            font-family: 'Poppins', sans-serif; font-weight: 700; line-height: 80px; text-align: center;
-            user-select: none; touch-action: none;
-        }
+        .player-row { display: flex; align-items: center; justify-content: space-between; padding: 10px; background: rgba(255,255,255,0.05); margin-bottom: 5px; border-radius: 8px; }
 
         @media (max-width: 600px) {
             h1 { font-size: 32px; }
@@ -367,32 +150,26 @@
 <body>
 
 <div id="game-container">
-    <div id="ui-layer">
-        <div id="status-text"></div>
-    </div>
+    <div id="ui-layer"><div id="status-text"></div></div>
 
-    <!-- Audio Toggle -->
-    <button id="audio-btn" onclick="audio.toggle(event)">
+    <button id="audio-btn" onclick="window.audioToggle(event)">
         <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
             <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
             <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
         </svg>
     </button>
 
-    <!-- Leaderboard -->
     <div id="leaderboard" class="hidden">
         <h3>STANDINGS</h3>
         <ul id="leaderboard-list"></ul>
     </div>
 
-    <!-- Center Announcements -->
     <div id="announcement-layer" class="hidden">
         <h2 id="announcement-main"></h2>
         <p id="announcement-sub"></p>
     </div>
 
-    <!-- Top Right Selected Team -->
-    <div id="top-right-team" onclick="openTeamSelect('player')" class="hidden">
+    <div id="top-right-team" onclick="window.openTeamSelect('player')" class="hidden">
         <div id="tr-color" class="lb-color"></div>
         <div class="tr-details">
             <span class="tr-label">Your Team</span>
@@ -411,33 +188,95 @@
         <h1>WORLD CUP<br>3D CHAOS</h1>
         <p class="subtitle">Use ARROWS to move. SPACE to Shoot. Run into enemies to Steal.</p>
         <div class="mode-grid">
-            <button onclick="startMode('classic')">CLASSIC (4 Teams of 1)</button>
-            <button onclick="startMode('duos')">DUOS (4 Teams of 2)</button>
-            <button onclick="startMode('trios')">TRIOS (3 Teams of 3)</button>
-            <button onclick="startMode('quads')">QUADS (3 Teams of 4)</button>
-            <button onclick="startMode('ffa')">FREE FOR ALL (8 Teams of 1)</button>
-            <button onclick="openCustomMenu()" style="border-color: #FFD700; color: #FFD700;">⚙ CUSTOM MATCH</button>
+            <button onclick="window.startMode('classic')">CLASSIC (4 Teams of 1)</button>
+            <button onclick="window.startMode('duos')">DUOS (4 Teams of 2)</button>
+            <button onclick="window.startMode('trios')">TRIOS (3 Teams of 3)</button>
+            <button onclick="window.startMode('quads')">QUADS (3 Teams of 4)</button>
+            <button onclick="window.startMode('ffa')">FREE FOR ALL (8 Teams of 1)</button>
+            <button onclick="window.openCustomMenu()" style="border-color: #FFD700; color: #FFD700;">⚙ CUSTOM MATCH</button>
+            <button class="btn-online" onclick="window.openMultiplayerMenu()">🌐 ONLINE MULTIPLAYER</button>
         </div>
     </div>
 
-    <!-- Custom Match Settings Modal -->
+    <!-- Multiplayer Hub -->
+    <div id="mp-menu" class="overlay hidden">
+        <div class="modal-box">
+            <h2>ONLINE MULTIPLAYER</h2>
+            <div class="setting-row">
+                <span>Username:</span>
+                <input type="text" id="username-input" placeholder="Enter Name" style="padding:12px; font-family:Poppins;">
+            </div>
+            <button class="btn-play" onclick="window.createParty()">CREATE PARTY (HOST)</button>
+            
+            <div style="border-top: 1px solid rgba(255,255,255,0.1); margin: 5px 0;"></div>
+            
+            <div class="setting-row">
+                <span>Join Code:</span>
+                <input type="text" id="join-code-input" placeholder="ABCD" maxlength="4" style="text-transform:uppercase; padding:12px; font-family:Poppins; text-align:center; font-size:24px; letter-spacing: 5px;">
+            </div>
+            <button class="btn-play" onclick="window.joinParty()" style="background:#1c2c3d; border-color:#4488ff;">JOIN PARTY</button>
+            
+            <button class="btn-cancel" onclick="window.closeMpMenu()" style="margin-top:5px;">BACK TO MAIN</button>
+        </div>
+    </div>
+
+    <!-- Multiplayer Lobby with Host Setup -->
+    <div id="lobby-menu" class="overlay hidden">
+        <div class="modal-box" style="max-width: 650px;">
+            <h2>PARTY LOBBY</h2>
+            <h1 style="color:#FFD700; text-align:center; letter-spacing:5px; margin: 0;" id="lobby-code">ABCD</h1>
+            <p style="text-align:center; color:#a0aabf; font-size:12px; margin-top:0;">Share this code with friends!</p>
+            
+            <div style="display: flex; gap: 15px; text-align: left; margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px;">
+                <!-- Player Pool -->
+                <div style="flex: 1; border-right: 1px solid rgba(255,255,255,0.1); padding-right: 15px;">
+                    <h3 style="font-size: 12px; color: #a0aabf; margin: 0 0 10px 0;">PLAYER POOL:</h3>
+                    <div id="mp-pool-list" style="max-height: 200px; overflow-y: auto; font-size: 13px; font-weight: bold;">
+                        <!-- injected via JS -->
+                    </div>
+                </div>
+                
+                <!-- Match Config (Host controls) -->
+                <div style="flex: 1.5;" id="lobby-host-config">
+                    <div class="setting-row">
+                        <span>Total Teams: <span class="val" id="mp-val-teams">2</span></span>
+                        <input type="range" id="mp-slider-teams" min="2" max="8" value="2" onchange="window.handleMpSliderChange()">
+                    </div>
+                    <div class="setting-row">
+                        <span>Players / Team: <span class="val" id="mp-val-players">1</span></span>
+                        <input type="range" id="mp-slider-players" min="1" max="4" value="1" onchange="window.handleMpSliderChange()">
+                    </div>
+                    
+                    <div id="mp-teams-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; max-height: 180px; overflow-y: auto; padding-right: 5px;">
+                        <!-- Injected by JS -->
+                    </div>
+                </div>
+            </div>
+
+            <button id="btn-start-mp" class="btn-play hidden" onclick="window.startMpMatch()">START MATCH</button>
+            <p id="lbl-waiting-host" class="subtitle hidden" style="margin:15px auto 0; text-align:center;">Waiting for host to setup match...</p>
+            <button class="btn-cancel" onclick="window.leaveParty()" style="margin-top:10px;">LEAVE LOBBY</button>
+        </div>
+    </div>
+
+    <!-- Custom Match Settings Modal (Local) -->
     <div id="custom-modal" class="overlay hidden">
         <div class="modal-box">
             <h2>CUSTOM MATCH</h2>
             <div class="setting-row">
                 <span>Total Teams: <span class="val" id="val-teams">4</span></span>
-                <input type="range" id="slider-teams" min="2" max="8" value="4" oninput="updateCustomUI()">
+                <input type="range" id="slider-teams" min="2" max="8" value="4" oninput="window.updateCustomUI()">
             </div>
             <div class="setting-row">
                 <span>Players per Team: <span class="val" id="val-players">1</span></span>
-                <input type="range" id="slider-players" min="1" max="4" value="1" oninput="updateCustomUI()">
+                <input type="range" id="slider-players" min="1" max="4" value="1" oninput="window.updateCustomUI()">
             </div>
             
             <h3 style="font-size: 12px; color: #a0aabf; margin: 10px 0 0 0;">OPPONENTS (Click to Change)</h3>
             <div id="opponents-list"></div>
             
-            <button class="btn-play" onclick="startCustomMode()">PLAY MATCH</button>
-            <button class="btn-cancel" onclick="closeCustomMenu()">CANCEL</button>
+            <button class="btn-play" onclick="window.startCustomMode()">PLAY MATCH</button>
+            <button class="btn-cancel" onclick="window.closeCustomMenu()">CANCEL</button>
         </div>
     </div>
 
@@ -447,291 +286,25 @@
         <div class="team-grid" id="team-selection">
             <!-- Buttons injected by JS -->
         </div>
-        <button class="btn-cancel" onclick="closeTeamSelect()" style="margin-top: 20px; width: 200px;">BACK</button>
+        <button class="btn-cancel" onclick="window.closeTeamSelect()" style="margin-top: 20px; width: 200px;">BACK</button>
     </div>
 
     <!-- Game Over Screen -->
     <div id="game-over-screen" class="overlay hidden">
         <h1 id="winner-text">TEAM WINS!</h1>
         <p class="subtitle" id="scorer-text">Scored the golden goal.</p>
-        <button onclick="resetToMenu()" style="width: 250px; border-color: #FFD700; color: #FFD700;">MAIN MENU</button>
+        <button onclick="window.resetToMenu()" style="width: 250px; border-color: #FFD700; color: #FFD700;">MAIN MENU</button>
     </div>
 
     <!-- Mobile controls -->
     <div id="joystick-zone"><div id="joystick-knob"></div></div>
     <div id="shoot-btn">SHOOT</div>
 </div>
-
-<script>
-    // --- SVG ICONS ---
-    const svgVolumeOn = `<svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>`;
-    const svgVolumeOff = `<svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg>`;
-
-    // --- AUDIO SYSTEM (Web Audio API) ---
-    const audio = {
-        ctx: null, muted: false, musicInterval: null, lastDribble: 0,
-        init: function() {
-            if (this.ctx) return;
-            this.ctx = new (window.AudioContext || window.webkitAudioContext)();
-            this.startMusic();
-        },
-        toggle: function(e) {
-            if (e) e.stopPropagation();
-            this.init();
-            this.muted = !this.muted;
-            document.getElementById('audio-btn').innerHTML = this.muted ? svgVolumeOff : svgVolumeOn;
-        },
-        playTone: function(freq, type, duration, vol=0.1, slideFreq=null) {
-            if (!this.ctx || this.muted) return;
-            const osc = this.ctx.createOscillator();
-            const gain = this.ctx.createGain();
-            osc.type = type;
-            osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
-            if (slideFreq) osc.frequency.exponentialRampToValueAtTime(slideFreq, this.ctx.currentTime + duration);
-            gain.gain.setValueAtTime(vol, this.ctx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + duration);
-            osc.connect(gain); gain.connect(this.ctx.destination);
-            osc.start(); osc.stop(this.ctx.currentTime + duration);
-        },
-        playDribble: function() {
-            const now = Date.now();
-            if (now - this.lastDribble < 100) return; // Prevent spamming sound
-            this.lastDribble = now;
-            this.playTone(150, 'triangle', 0.1, 0.1, 50);
-        },
-        playShoot: function() { this.playTone(600, 'square', 0.3, 0.15, 100); },
-        playSteal: function() { this.playTone(100, 'sawtooth', 0.2, 0.2, 40); },
-        playWhistle: function() {
-            this.playTone(1200, 'square', 0.15, 0.1);
-            setTimeout(() => this.playTone(1400, 'square', 0.3, 0.15), 200);
-        },
-        playCheer: function() {
-            setTimeout(() => this.playTone(523.25, 'square', 0.2, 0.1), 0); // C5
-            setTimeout(() => this.playTone(659.25, 'square', 0.2, 0.1), 150); // E5
-            setTimeout(() => this.playTone(783.99, 'square', 0.2, 0.1), 300); // G5
-            setTimeout(() => this.playTone(1046.50, 'square', 0.4, 0.15), 450); // C6
-        },
-        startMusic: function() {
-            const notes = [196, 0, 196, 261, 329, 0, 329, 261, 293, 0, 293, 349, 392, 0, 392, 349];
-            let idx = 0;
-            this.musicInterval = setInterval(() => {
-                if(this.muted || gameState !== 'playing') return;
-                const freq = notes[idx];
-                if(freq > 0) this.playTone(freq/2, 'square', 0.15, 0.04); 
-                idx = (idx + 1) % notes.length;
-            }, 180);
-        }
-    };
-
-    // Unlock audio context on first interaction
-    document.body.addEventListener('click', () => audio.init(), { once: true });
-    document.body.addEventListener('touchstart', () => audio.init(), { once: true });
-
-    // --- THREE.JS SETUP ---
-    const container = document.getElementById('game-container');
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x0a0f1a); 
-    
-    const camera = new THREE.PerspectiveCamera(50, container.clientWidth / container.clientHeight, 1, 1000);
-    camera.position.set(0, 350, 300);
-    camera.lookAt(0, 0, -50); 
-
-    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
-    renderer.setSize(container.clientWidth, container.clientHeight);
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    container.appendChild(renderer.domElement);
-
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.35); 
-    scene.add(ambientLight);
-
-    const dirLight = new THREE.DirectionalLight(0xaabbff, 0.3); 
-    dirLight.position.set(100, 200, 100);
-    scene.add(dirLight);
-
-    function createStadiumLight(x, z) {
-        const spotLight = new THREE.SpotLight(0xffffff, 0.8, 800, Math.PI / 4, 0.4, 1);
-        spotLight.position.set(x, 250, z);
-        spotLight.lookAt(0, 0, 0);
-        spotLight.castShadow = true;
-        spotLight.shadow.mapSize.width = 1024;
-        spotLight.shadow.mapSize.height = 1024;
-        scene.add(spotLight);
-        
-        const bulbGeo = new THREE.SphereGeometry(4, 16, 16);
-        const bulbMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-        const bulb = new THREE.Mesh(bulbGeo, bulbMat);
-        bulb.position.set(x, 250, z);
-        scene.add(bulb);
-    }
-    createStadiumLight(-250, -300); createStadiumLight(250, -300);
-    createStadiumLight(-250, 300); createStadiumLight(250, 300);
-
-    // --- GAME DIMENSIONS ---
-    const V_WIDTH = 400;
-    const V_HEIGHT = 500;
-    function get3DX(logicalX) { return logicalX - (V_WIDTH / 2); }
-    function get3DZ(logicalY) { return logicalY - (V_HEIGHT / 2); }
-
-    let adTexture = null; // Global texture for scrolling advertisements
-
-    window.addEventListener('resize', () => {
-        camera.aspect = container.clientWidth / container.clientHeight;
-        camera.updateProjectionMatrix();
-        renderer.setSize(container.clientWidth, container.clientHeight);
-    });
-
-    // --- SCENERY SETUP ---
-    function buildField() {
-        const fieldGroup = new THREE.Group();
-
-        const trackGeo = new THREE.PlaneGeometry(V_WIDTH + 140, V_HEIGHT + 140);
-        const trackMat = new THREE.MeshStandardMaterial({ color: 0x8B3A3A, roughness: 0.9, metalness: 0.1 }); 
-        const track = new THREE.Mesh(trackGeo, trackMat);
-        track.rotation.x = -Math.PI / 2; track.position.set(0, -0.5, 0); track.receiveShadow = true;
-        fieldGroup.add(track);
-
-        const stripeDepth = 50; 
-        const grassMat1 = new THREE.MeshStandardMaterial({ color: 0x2e7d32, roughness: 1.0 });
-        const grassMat2 = new THREE.MeshStandardMaterial({ color: 0x276a2a, roughness: 1.0 });
-        
-        for (let y = 0; y < V_HEIGHT; y += stripeDepth) {
-            const mat = (y / stripeDepth) % 2 === 0 ? grassMat1 : grassMat2;
-            const stripeGeo = new THREE.PlaneGeometry(V_WIDTH, stripeDepth);
-            const stripe = new THREE.Mesh(stripeGeo, mat);
-            stripe.rotation.x = -Math.PI / 2; 
-            stripe.position.set(0, 0, get3DZ(y + (stripeDepth / 2)));
-            stripe.receiveShadow = true;
-            fieldGroup.add(stripe);
-        }
-
-        const lineMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0x444444, roughness: 0.5 });
-        const lineOffset = 0.5;
-
-        const borders = [
-            {w: V_WIDTH, h: 3, x: 0, z: 0}, {w: V_WIDTH, h: 3, x: 0, z: V_HEIGHT},
-            {w: 3, h: V_HEIGHT, x: -V_WIDTH/2, z: V_HEIGHT/2}, {w: 3, h: V_HEIGHT, x: V_WIDTH/2, z: V_HEIGHT/2}
-        ];
-        borders.forEach(b => {
-            const m = new THREE.Mesh(new THREE.BoxGeometry(b.w, 1, b.h), lineMat);
-            m.position.set(b.x === 0 ? 0 : b.x, lineOffset, b.z === 0 ? get3DZ(0) : get3DZ(b.z));
-            fieldGroup.add(m);
-        });
-
-        const centerLine = new THREE.Mesh(new THREE.BoxGeometry(V_WIDTH, 1, 3), lineMat);
-        centerLine.position.set(0, lineOffset, 0); fieldGroup.add(centerLine);
-
-        const centerCircle = new THREE.Mesh(new THREE.TorusGeometry(40, 1.5, 4, 32), lineMat);
-        centerCircle.rotation.x = -Math.PI / 2; centerCircle.position.set(0, lineOffset, 0); fieldGroup.add(centerCircle);
-
-        const goalW = 120, goalH = 60;
-        const bottomLine = new THREE.Mesh(new THREE.BoxGeometry(goalW, 1, 3), lineMat);
-        bottomLine.position.set(0, lineOffset, get3DZ(goalH)); fieldGroup.add(bottomLine);
-        const sideGeo = new THREE.BoxGeometry(3, 1, goalH);
-        const leftLine = new THREE.Mesh(sideGeo, lineMat); leftLine.position.set(-goalW/2, lineOffset, get3DZ(goalH/2)); fieldGroup.add(leftLine);
-        const rightLine = new THREE.Mesh(sideGeo, lineMat); rightLine.position.set(goalW/2, lineOffset, get3DZ(goalH/2)); fieldGroup.add(rightLine);
-
-        const netGroup = new THREE.Group();
-        const postGeo = new THREE.CylinderGeometry(2, 2, 30, 8);
-        const postMat = new THREE.MeshLambertMaterial({ color: 0xdddddd });
-        const leftPost = new THREE.Mesh(postGeo, postMat); leftPost.position.set(-goalW/2, 15, get3DZ(0)); leftPost.castShadow = true; netGroup.add(leftPost);
-        const rightPost = new THREE.Mesh(postGeo, postMat); rightPost.position.set(goalW/2, 15, get3DZ(0)); rightPost.castShadow = true; netGroup.add(rightPost);
-        const crossBar = new THREE.Mesh(new THREE.CylinderGeometry(2, 2, goalW, 8), postMat);
-        crossBar.rotation.z = Math.PI / 2; crossBar.position.set(0, 30, get3DZ(0)); crossBar.castShadow = true; netGroup.add(crossBar);
-
-        const netCanvas = document.createElement('canvas');
-        netCanvas.width = 64; netCanvas.height = 64;
-        const netCtx = netCanvas.getContext('2d');
-        netCtx.strokeStyle = 'rgba(255, 255, 255, 0.7)'; netCtx.lineWidth = 3;
-        netCtx.beginPath(); netCtx.moveTo(0, 32); netCtx.lineTo(32, 0); netCtx.lineTo(64, 32); netCtx.lineTo(32, 64); netCtx.closePath(); netCtx.stroke();
-        const netTex = new THREE.CanvasTexture(netCanvas); netTex.wrapS = THREE.RepeatWrapping; netTex.wrapT = THREE.RepeatWrapping;
-        const netMaterial = new THREE.MeshBasicMaterial({ map: netTex, transparent: true, side: THREE.DoubleSide, depthWrite: false });
-
-        const backNet = new THREE.Mesh(new THREE.PlaneGeometry(goalW, 30), netMaterial.clone());
-        backNet.material.map = netTex.clone(); backNet.material.map.repeat.set(12, 3);
-        backNet.position.set(0, 15, get3DZ(-15)); netGroup.add(backNet);
-
-        const topNet = new THREE.Mesh(new THREE.PlaneGeometry(goalW, 15), netMaterial.clone());
-        topNet.material.map = netTex.clone(); topNet.material.map.repeat.set(12, 1.5);
-        topNet.rotation.x = -Math.PI / 2; topNet.position.set(0, 30, get3DZ(-7.5)); netGroup.add(topNet);
-
-        const sideNetGeo = new THREE.PlaneGeometry(15, 30);
-        const leftNet = new THREE.Mesh(sideNetGeo, netMaterial.clone()); leftNet.material.map = netTex.clone(); leftNet.material.map.repeat.set(1.5, 3);
-        leftNet.rotation.y = Math.PI / 2; leftNet.position.set(-goalW/2, 15, get3DZ(-7.5)); netGroup.add(leftNet);
-        const rightNet = new THREE.Mesh(sideNetGeo, netMaterial.clone()); rightNet.material.map = netTex.clone(); rightNet.material.map.repeat.set(1.5, 3);
-        rightNet.rotation.y = -Math.PI / 2; rightNet.position.set(goalW/2, 15, get3DZ(-7.5)); netGroup.add(rightNet);
-
-        fieldGroup.add(netGroup);
-
-        // --- MOVING ADVERTISEMENTS (LED HOARDINGS) ---
-        const adCanvas = document.createElement('canvas');
-        adCanvas.width = 1024; adCanvas.height = 128; // Made canvas taller for larger text
-        const adCtx = adCanvas.getContext('2d');
-        adCtx.fillStyle = '#000000'; adCtx.fillRect(0, 0, 1024, 128);
-        adCtx.fillStyle = '#FFD700'; adCtx.font = 'bold 64px "Poppins", sans-serif'; // Increased font size
-        adCtx.textAlign = 'center'; adCtx.textBaseline = 'middle';
-        adCtx.fillText('HAPPY BIRTHDAY ROCKY  ⚽  HAPPY BIRTHDAY ROCKY  ⚽', 512, 64);
-
-        adTexture = new THREE.CanvasTexture(adCanvas);
-        adTexture.wrapS = THREE.RepeatWrapping;
-        adTexture.wrapT = THREE.RepeatWrapping;
-        adTexture.repeat.set(6, 1);
-
-        const adMat = new THREE.MeshStandardMaterial({ 
-            map: adTexture, emissiveMap: adTexture, 
-            emissive: new THREE.Color(0xFFFFFF), emissiveIntensity: 0.8, roughness: 0.4 
-        });
-
-        const adHeight = 24; // 3x taller than before
-        const adDistX = V_WIDTH/2 + 69; // Flush against the stands (200 + 70 = 270)
-        const adDistZ = V_HEIGHT/2 + 69; // Flush against the stands (250 + 70 = 320)
-
-        const topAd = new THREE.Mesh(new THREE.BoxGeometry(adDistX*2, adHeight, 2), adMat);
-        topAd.position.set(0, adHeight/2, -adDistZ); fieldGroup.add(topAd);
-
-        const bottomAd = new THREE.Mesh(new THREE.BoxGeometry(adDistX*2, adHeight, 2), adMat);
-        bottomAd.position.set(0, adHeight/2, adDistZ); bottomAd.rotation.y = Math.PI; fieldGroup.add(bottomAd);
-
-        // Fixed: Swapped the width and depth so the 90-degree rotation places them along the sides!
-        const leftAd = new THREE.Mesh(new THREE.BoxGeometry(adDistZ*2, adHeight, 2), adMat);
-        leftAd.position.set(-adDistX, adHeight/2, 0); leftAd.rotation.y = Math.PI / 2; fieldGroup.add(leftAd);
-
-        const rightAd = new THREE.Mesh(new THREE.BoxGeometry(adDistZ*2, adHeight, 2), adMat);
-        rightAd.position.set(adDistX, adHeight/2, 0); rightAd.rotation.y = -Math.PI / 2; fieldGroup.add(rightAd);
-
-        // --- STADIUM STANDS ---
-        const standMat = new THREE.MeshStandardMaterial({ color: 0x4a505e, roughness: 0.8 }); 
-        const seatMat = new THREE.MeshStandardMaterial({ color: 0x1E90FF, roughness: 0.6 }); 
-        const numTiers = 5, tierWidth = 25, tierHeight = 18;
-
-        function createStandSide(w, posX, posZ, rotationY) {
-            const sideGroup = new THREE.Group();
-            const wall = new THREE.Mesh(new THREE.BoxGeometry(w, tierHeight * numTiers + 20, 10), standMat);
-            wall.position.set(0, (tierHeight * numTiers + 20) / 2, (tierWidth * numTiers) + 5);
-            wall.castShadow = true; wall.receiveShadow = true; sideGroup.add(wall);
-
-            for (let i = 0; i < numTiers; i++) {
-                const tier = new THREE.Mesh(new THREE.BoxGeometry(w, tierHeight * (i + 1), tierWidth), standMat);
-                tier.position.set(0, (tierHeight * (i + 1)) / 2, (tierWidth * i) + (tierWidth/2));
-                tier.receiveShadow = true; tier.castShadow = true; sideGroup.add(tier);
-                
-                const seats = new THREE.Mesh(new THREE.BoxGeometry(w - 10, 2, tierWidth - 6), seatMat);
-                seats.position.set(0, (tierHeight * (i + 1)) + 1, (tierWidth * i) + (tierWidth/2));
-                seats.receiveShadow = true; sideGroup.add(seats);
-            }
-            sideGroup.position.set(posX, 0, posZ); sideGroup.rotation.y = rotationY;
-            return sideGroup;
-        }
-
-        fieldGroup.add(createStandSide(V_HEIGHT + 140, -V_WIDTH/2 - 70, 0, -Math.PI/2)); 
-        fieldGroup.add(createStandSide(V_HEIGHT + 140, V_WIDTH/2 + 70, 0, Math.PI/2));  
-        fieldGroup.add(createStandSide(V_WIDTH + 140, 0, V_HEIGHT/2 + 70, 0));         
-        fieldGroup.add(createStandSide(V_WIDTH + 140, 0, -V_HEIGHT/2 - 70, Math.PI));  
-
-        scene.add(fieldGroup);
-    }
-    
-    buildField();
+    <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    // CHANGED: Imported Realtime Database instead of Firestore
+    import { getDatabase, ref, set, get, onValue, update, remove } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
 
     // --- GAME DATA (48 TEAMS) ---
     const TEAMS = [
@@ -761,252 +334,898 @@
         { id: 'UZB', name: 'Uzbekistan', color1: '#0099B5', color2: '#1EB53A' }, { id: 'NZL', name: 'New Zealand', color1: '#FFFFFF', color2: '#000000' }
     ];
 
+    // --- SVG ICONS ---
+    const svgVolumeOn = `<svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>`;
+    const svgVolumeOff = `<svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg>`;
+
+    // --- AUDIO SYSTEM (Web Audio API) ---
+    const audio = {
+        ctx: null, muted: false, musicInterval: null, lastDribble: 0,
+        init: function() {
+            if (this.ctx) return;
+            this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+            this.startMusic();
+        },
+        toggle: function(e) {
+            if (e) e.stopPropagation();
+            this.init(); this.muted = !this.muted;
+            document.getElementById('audio-btn').innerHTML = this.muted ? svgVolumeOff : svgVolumeOn;
+        },
+        playTone: function(freq, type, duration, vol=0.1, slideFreq=null) {
+            if (!this.ctx || this.muted) return;
+            const osc = this.ctx.createOscillator(); const gain = this.ctx.createGain();
+            osc.type = type; osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+            if (slideFreq) osc.frequency.exponentialRampToValueAtTime(slideFreq, this.ctx.currentTime + duration);
+            gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + duration);
+            osc.connect(gain); gain.connect(this.ctx.destination);
+            osc.start(); osc.stop(this.ctx.currentTime + duration);
+        },
+        playDribble: function() { const now = Date.now(); if (now - this.lastDribble < 100) return; this.lastDribble = now; this.playTone(150, 'triangle', 0.1, 0.1, 50); },
+        playShoot: function() { this.playTone(600, 'square', 0.3, 0.15, 100); },
+        playSteal: function() { this.playTone(100, 'sawtooth', 0.2, 0.2, 40); },
+        playWhistle: function() { this.playTone(1200, 'square', 0.15, 0.1); setTimeout(() => this.playTone(1400, 'square', 0.3, 0.15), 200); },
+        playCheer: function() { setTimeout(() => this.playTone(523.25, 'square', 0.2, 0.1), 0); setTimeout(() => this.playTone(659.25, 'square', 0.2, 0.1), 150); setTimeout(() => this.playTone(783.99, 'square', 0.2, 0.1), 300); setTimeout(() => this.playTone(1046.50, 'square', 0.4, 0.15), 450); },
+        startMusic: function() {
+            const notes = [196, 0, 196, 261, 329, 0, 329, 261, 293, 0, 293, 349, 392, 0, 392, 349]; let idx = 0;
+            this.musicInterval = setInterval(() => {
+                if(this.muted || gameState !== 'playing') return;
+                const freq = notes[idx]; if(freq > 0) this.playTone(freq/2, 'square', 0.15, 0.04); 
+                idx = (idx + 1) % notes.length;
+            }, 180);
+        }
+    };
+    window.audioToggle = (e) => audio.toggle(e);
+    document.body.addEventListener('click', () => audio.init(), { once: true });
+    document.body.addEventListener('touchstart', () => audio.init(), { once: true });
+
+    // --- THREE.JS SETUP ---
+    const container = document.getElementById('game-container');
+    const scene = new THREE.Scene(); scene.background = new THREE.Color(0x0a0f1a); 
+    const camera = new THREE.PerspectiveCamera(50, container.clientWidth / container.clientHeight, 1, 1000);
+    camera.position.set(0, 350, 300); camera.lookAt(0, 0, -50); 
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+    renderer.setSize(container.clientWidth, container.clientHeight); renderer.shadowMap.enabled = true;
+    container.appendChild(renderer.domElement);
+
+    scene.add(new THREE.AmbientLight(0xffffff, 0.35)); 
+    const dirLight = new THREE.DirectionalLight(0xaabbff, 0.3); dirLight.position.set(100, 200, 100); scene.add(dirLight);
+
+    function createStadiumLight(x, z) {
+        const spotLight = new THREE.SpotLight(0xffffff, 0.8, 800, Math.PI / 4, 0.4, 1);
+        spotLight.position.set(x, 250, z); spotLight.lookAt(0, 0, 0); spotLight.castShadow = true;
+        scene.add(spotLight);
+        const bulb = new THREE.Mesh(new THREE.SphereGeometry(4, 16, 16), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+        bulb.position.set(x, 250, z); scene.add(bulb);
+    }
+    createStadiumLight(-250, -300); createStadiumLight(250, -300); createStadiumLight(-250, 300); createStadiumLight(250, 300);
+
+    const V_WIDTH = 400; const V_HEIGHT = 500;
+    function get3DX(logicalX) { return logicalX - (V_WIDTH / 2); }
+    function get3DZ(logicalY) { return logicalY - (V_HEIGHT / 2); }
+    let adTexture = null; 
+
+    window.addEventListener('resize', () => {
+        camera.aspect = container.clientWidth / container.clientHeight; camera.updateProjectionMatrix();
+        renderer.setSize(container.clientWidth, container.clientHeight);
+    });
+
+    function buildField() {
+        const fieldGroup = new THREE.Group();
+        const track = new THREE.Mesh(new THREE.PlaneGeometry(V_WIDTH + 140, V_HEIGHT + 140), new THREE.MeshStandardMaterial({ color: 0x8B3A3A, roughness: 0.9 }));
+        track.rotation.x = -Math.PI / 2; track.position.set(0, -0.5, 0); track.receiveShadow = true; fieldGroup.add(track);
+
+        const grassMat1 = new THREE.MeshStandardMaterial({ color: 0x2e7d32, roughness: 1.0 });
+        const grassMat2 = new THREE.MeshStandardMaterial({ color: 0x276a2a, roughness: 1.0 });
+        for (let y = 0; y < V_HEIGHT; y += 50) {
+            const stripe = new THREE.Mesh(new THREE.PlaneGeometry(V_WIDTH, 50), (y / 50) % 2 === 0 ? grassMat1 : grassMat2);
+            stripe.rotation.x = -Math.PI / 2; stripe.position.set(0, 0, get3DZ(y + 25)); stripe.receiveShadow = true; fieldGroup.add(stripe);
+        }
+
+        const lineMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0x444444, roughness: 0.5 });
+        const borders = [{w: V_WIDTH, h: 3, x: 0, z: 0}, {w: V_WIDTH, h: 3, x: 0, z: V_HEIGHT}, {w: 3, h: V_HEIGHT, x: -V_WIDTH/2, z: V_HEIGHT/2}, {w: 3, h: V_HEIGHT, x: V_WIDTH/2, z: V_HEIGHT/2}];
+        borders.forEach(b => {
+            const m = new THREE.Mesh(new THREE.BoxGeometry(b.w, 1, b.h), lineMat);
+            m.position.set(b.x === 0 ? 0 : b.x, 0.5, b.z === 0 ? get3DZ(0) : get3DZ(b.z)); fieldGroup.add(m);
+        });
+
+        const centerLine = new THREE.Mesh(new THREE.BoxGeometry(V_WIDTH, 1, 3), lineMat); centerLine.position.set(0, 0.5, 0); fieldGroup.add(centerLine);
+        const centerCircle = new THREE.Mesh(new THREE.TorusGeometry(40, 1.5, 4, 32), lineMat); centerCircle.rotation.x = -Math.PI / 2; centerCircle.position.set(0, 0.5, 0); fieldGroup.add(centerCircle);
+
+        const goalW = 120, goalH = 60;
+        const bottomLine = new THREE.Mesh(new THREE.BoxGeometry(goalW, 1, 3), lineMat); bottomLine.position.set(0, 0.5, get3DZ(goalH)); fieldGroup.add(bottomLine);
+        const leftLine = new THREE.Mesh(new THREE.BoxGeometry(3, 1, goalH), lineMat); leftLine.position.set(-goalW/2, 0.5, get3DZ(goalH/2)); fieldGroup.add(leftLine);
+        const rightLine = new THREE.Mesh(new THREE.BoxGeometry(3, 1, goalH), lineMat); rightLine.position.set(goalW/2, 0.5, get3DZ(goalH/2)); fieldGroup.add(rightLine);
+
+        const netGroup = new THREE.Group();
+        const postMat = new THREE.MeshLambertMaterial({ color: 0xdddddd });
+        const leftPost = new THREE.Mesh(new THREE.CylinderGeometry(2, 2, 30, 8), postMat); leftPost.position.set(-goalW/2, 15, get3DZ(0)); leftPost.castShadow = true; netGroup.add(leftPost);
+        const rightPost = new THREE.Mesh(new THREE.CylinderGeometry(2, 2, 30, 8), postMat); rightPost.position.set(goalW/2, 15, get3DZ(0)); rightPost.castShadow = true; netGroup.add(rightPost);
+        const crossBar = new THREE.Mesh(new THREE.CylinderGeometry(2, 2, goalW, 8), postMat); crossBar.rotation.z = Math.PI / 2; crossBar.position.set(0, 30, get3DZ(0)); crossBar.castShadow = true; netGroup.add(crossBar);
+
+        const netCanvas = document.createElement('canvas'); netCanvas.width = 64; netCanvas.height = 64;
+        const netCtx = netCanvas.getContext('2d'); netCtx.strokeStyle = 'rgba(255, 255, 255, 0.7)'; netCtx.lineWidth = 3;
+        netCtx.beginPath(); netCtx.moveTo(0, 32); netCtx.lineTo(32, 0); netCtx.lineTo(64, 32); netCtx.lineTo(32, 64); netCtx.closePath(); netCtx.stroke();
+        const netTex = new THREE.CanvasTexture(netCanvas); netTex.wrapS = THREE.RepeatWrapping; netTex.wrapT = THREE.RepeatWrapping;
+        const netMaterial = new THREE.MeshBasicMaterial({ map: netTex, transparent: true, side: THREE.DoubleSide, depthWrite: false });
+
+        const backNet = new THREE.Mesh(new THREE.PlaneGeometry(goalW, 30), netMaterial.clone()); backNet.material.map = netTex.clone(); backNet.material.map.repeat.set(12, 3); backNet.position.set(0, 15, get3DZ(-15)); netGroup.add(backNet);
+        const topNet = new THREE.Mesh(new THREE.PlaneGeometry(goalW, 15), netMaterial.clone()); topNet.material.map = netTex.clone(); topNet.material.map.repeat.set(12, 1.5); topNet.rotation.x = -Math.PI / 2; topNet.position.set(0, 30, get3DZ(-7.5)); netGroup.add(topNet);
+        const leftNet = new THREE.Mesh(new THREE.PlaneGeometry(15, 30), netMaterial.clone()); leftNet.material.map = netTex.clone(); leftNet.material.map.repeat.set(1.5, 3); leftNet.rotation.y = Math.PI / 2; leftNet.position.set(-goalW/2, 15, get3DZ(-7.5)); netGroup.add(leftNet);
+        const rightNet = new THREE.Mesh(new THREE.PlaneGeometry(15, 30), netMaterial.clone()); rightNet.material.map = netTex.clone(); rightNet.material.map.repeat.set(1.5, 3); rightNet.rotation.y = -Math.PI / 2; rightNet.position.set(goalW/2, 15, get3DZ(-7.5)); netGroup.add(rightNet);
+        fieldGroup.add(netGroup);
+
+        const adCanvas = document.createElement('canvas'); adCanvas.width = 1024; adCanvas.height = 128; 
+        const adCtx = adCanvas.getContext('2d'); adCtx.fillStyle = '#000000'; adCtx.fillRect(0, 0, 1024, 128);
+        adCtx.fillStyle = '#FFD700'; adCtx.font = 'bold 64px "Poppins", sans-serif'; adCtx.textAlign = 'center'; adCtx.textBaseline = 'middle';
+        adCtx.fillText('HAPPY BIRTHDAY ROCKY  ⚽  HAPPY BIRTHDAY ROCKY  ⚽', 512, 64);
+        adTexture = new THREE.CanvasTexture(adCanvas); adTexture.wrapS = THREE.RepeatWrapping; adTexture.wrapT = THREE.RepeatWrapping; adTexture.repeat.set(6, 1);
+        const adMat = new THREE.MeshStandardMaterial({ map: adTexture, emissiveMap: adTexture, emissive: new THREE.Color(0xFFFFFF), emissiveIntensity: 0.8, roughness: 0.4 });
+        
+        const adHeight = 24; const adDistX = V_WIDTH/2 + 69; const adDistZ = V_HEIGHT/2 + 69;
+        const topAd = new THREE.Mesh(new THREE.BoxGeometry(adDistX*2, adHeight, 2), adMat); topAd.position.set(0, adHeight/2, -adDistZ); fieldGroup.add(topAd);
+        const bottomAd = new THREE.Mesh(new THREE.BoxGeometry(adDistX*2, adHeight, 2), adMat); bottomAd.position.set(0, adHeight/2, adDistZ); bottomAd.rotation.y = Math.PI; fieldGroup.add(bottomAd);
+        const leftAd = new THREE.Mesh(new THREE.BoxGeometry(adDistZ*2, adHeight, 2), adMat); leftAd.position.set(-adDistX, adHeight/2, 0); leftAd.rotation.y = Math.PI / 2; fieldGroup.add(leftAd);
+        const rightAd = new THREE.Mesh(new THREE.BoxGeometry(adDistZ*2, adHeight, 2), adMat); rightAd.position.set(adDistX, adHeight/2, 0); rightAd.rotation.y = -Math.PI / 2; fieldGroup.add(rightAd);
+
+        const standMat = new THREE.MeshStandardMaterial({ color: 0x4a505e, roughness: 0.8 }); 
+        const seatMat = new THREE.MeshStandardMaterial({ color: 0x1E90FF, roughness: 0.6 }); 
+        function createStandSide(w, posX, posZ, rotationY) {
+            const sideGroup = new THREE.Group();
+            const wall = new THREE.Mesh(new THREE.BoxGeometry(w, 18 * 5 + 20, 10), standMat); wall.position.set(0, (18 * 5 + 20) / 2, (25 * 5) + 5); wall.castShadow = true; wall.receiveShadow = true; sideGroup.add(wall);
+            for (let i = 0; i < 5; i++) {
+                const tier = new THREE.Mesh(new THREE.BoxGeometry(w, 18 * (i + 1), 25), standMat); tier.position.set(0, (18 * (i + 1)) / 2, (25 * i) + (25/2)); tier.receiveShadow = true; tier.castShadow = true; sideGroup.add(tier);
+                const seats = new THREE.Mesh(new THREE.BoxGeometry(w - 10, 2, 25 - 6), seatMat); seats.position.set(0, (18 * (i + 1)) + 1, (25 * i) + (25/2)); seats.receiveShadow = true; sideGroup.add(seats);
+            }
+            sideGroup.position.set(posX, 0, posZ); sideGroup.rotation.y = rotationY; return sideGroup;
+        }
+        fieldGroup.add(createStandSide(V_HEIGHT + 140, -V_WIDTH/2 - 70, 0, -Math.PI/2)); 
+        fieldGroup.add(createStandSide(V_HEIGHT + 140, V_WIDTH/2 + 70, 0, Math.PI/2));  
+        fieldGroup.add(createStandSide(V_WIDTH + 140, 0, V_HEIGHT/2 + 70, 0));         
+        fieldGroup.add(createStandSide(V_WIDTH + 140, 0, -V_HEIGHT/2 - 70, Math.PI));  
+        scene.add(fieldGroup);
+    }
+    buildField();
+
+    // --- FIREBASE AND MULTIPLAYER LOGIC ---
+    // PASTE YOUR FIREBASE CONFIG HERE:
+    const firebaseConfig = {
+        apiKey: "AIzaSyAyUL3kByBYNZb9hCWfsPTois34ZA4-VqM",
+        authDomain: "worldcupbackend.firebaseapp.com",
+        // IMPORTANT: Realtime Database requires the databaseURL! 
+        databaseURL: "https://worldcupbackend-default-rtdb.firebaseio.com",
+        projectId: "worldcupbackend",
+        storageBucket: "worldcupbackend.firebasestorage.app",
+        messagingSenderId: "210508844138",
+        appId: "1:210508844138:web:57ad45b39a628b0c0fce13",
+        measurementId: "G-CPV8DRJP6S"
+    };
+    
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    // CHANGED: Use getDatabase instead of getFirestore
+    const db = getDatabase(app);
+
+    let currentUser = null;
+    let localSessionId = Math.random().toString(36).substring(2, 10); 
+    let username = "Player";
+    let isMultiplayer = false;
+    let isHost = false;
+    let partyCode = null;
+    let partyData = null;
+    let partyUnsub = null;
+    let inputsUnsub = null;
+    let clientInputs = {};
+    let lastNetworkSync = 0;
+    let lastInputSync = 0;
+    window.pendingNetworkShoot = false; 
+    window.pendingNetworkSteal = null;  
+    window.pendingNetworkLost = null;   
+    window.pendingNetworkGrab = false;  
+
+    async function initAuth() {
+        try {
+            await signInAnonymously(auth);
+        } catch (error) {
+            console.error("Error signing in anonymously:", error);
+        }
+    }
+
+    onAuthStateChanged(auth, async (user) => {
+        currentUser = user;
+        if (user) {
+            try {
+                const docRef = ref(db, 'users/' + user.uid + '/profile');
+                const docSnap = await get(docRef);
+                if (docSnap.exists() && docSnap.val().username) {
+                    username = docSnap.val().username;
+                    document.getElementById('username-input').value = username;
+                } else {
+                    username = "Player_" + Math.floor(Math.random() * 1000);
+                    document.getElementById('username-input').value = username;
+                    await set(docRef, { username: username });
+                }
+            } catch(e) { console.error(e); }
+        }
+    });
+
+    window.openMultiplayerMenu = () => {
+        if(!currentUser) { showAnnouncement("PLEASE WAIT", "Connecting to servers...", "#FFD700", 2000); return; }
+        document.getElementById('menu-screen').classList.add('hidden');
+        document.getElementById('top-right-team').classList.add('hidden');
+        document.getElementById('mp-menu').classList.remove('hidden');
+    };
+
+    window.closeMpMenu = () => {
+        document.getElementById('mp-menu').classList.add('hidden');
+        document.getElementById('menu-screen').classList.remove('hidden');
+        document.getElementById('top-right-team').classList.remove('hidden');
+    };
+
+    async function saveProfile() {
+        if (!currentUser) return;
+        const newName = document.getElementById('username-input').value.trim() || "Player";
+        username = newName;
+        try { await set(ref(db, 'users/' + currentUser.uid + '/profile'), { username: username }); } catch(e){}
+    }
+
+    // Host helper to generate match config from sliders
+    function getHostMatchConfig() {
+        const tCount = parseInt(document.getElementById('mp-slider-teams').value);
+        const pCount = parseInt(document.getElementById('mp-slider-players').value);
+        
+        let currentTeams = (partyData && partyData.matchConfig) ? [...partyData.matchConfig.teams] : [playerTeam.id];
+        let currentAssign = (partyData && partyData.matchConfig) ? partyData.matchConfig.assignments : {};
+
+        while(currentTeams.length < tCount) {
+            const pool = TEAMS.filter(t => !currentTeams.includes(t.id));
+            currentTeams.push(pool[Math.floor(Math.random() * pool.length)].id);
+        }
+        currentTeams.length = tCount;
+
+        let newAssign = {};
+        currentTeams.forEach(tid => {
+            let arr = currentAssign[tid] ? [...currentAssign[tid]] : [];
+            while(arr.length < pCount) arr.push('BOT');
+            arr.length = pCount;
+            newAssign[tid] = arr;
+        });
+
+        return { tCount, pCount, teams: currentTeams, assignments: newAssign };
+    }
+
+    window.handleMpSliderChange = async () => {
+        if(!isHost) return;
+        const newConfig = getHostMatchConfig();
+        await update(ref(db, 'parties/' + partyCode), { matchConfig: newConfig });
+    };
+
+    // Cycle slots in the multiplayer lobby grid
+    window.cycleMpSlot = async (teamId, slotIdx) => {
+        if(!isHost || !partyData || !partyData.matchConfig) return;
+        let config = partyData.matchConfig;
+        let currentVal = config.assignments[teamId][slotIdx];
+        
+        let connectedUids = partyData.players.map(p => p.uid);
+        let assignedUids = [];
+        Object.values(config.assignments).forEach(arr => assignedUids.push(...arr.filter(u => u !== 'BOT')));
+        
+        let availableUids = connectedUids.filter(u => !assignedUids.includes(u));
+        
+        let nextVal = 'BOT';
+        if (currentVal === 'BOT') {
+            if (availableUids.length > 0) nextVal = availableUids[0]; 
+        } else {
+            nextVal = 'BOT';
+        }
+
+        config.assignments[teamId][slotIdx] = nextVal;
+        await update(ref(db, 'parties/' + partyCode), { matchConfig: config });
+    };
+
+    window.createParty = async () => {
+        await saveProfile();
+        partyCode = Math.random().toString(36).substring(2, 6).toUpperCase();
+        isHost = true; isMultiplayer = true;
+        
+        let initAssign = {}; initAssign[playerTeam.id] = [localSessionId];
+        
+        try {
+            await set(ref(db, 'parties/' + partyCode), {
+                host: localSessionId, state: 'lobby',
+                players: [{ uid: localSessionId, name: username }],
+                matchConfig: { tCount: 2, pCount: 1, teams: [playerTeam.id, 'MEX'], assignments: initAssign }
+            });
+            listenToParty(partyCode);
+            showLobbyUI();
+        } catch(e) { console.error(e); showAnnouncement("ERROR", "Could not create party", "#ff3333", 2000); }
+    };
+
+    window.joinParty = async () => {
+        await saveProfile();
+        const code = document.getElementById('join-code-input').value.trim().toUpperCase();
+        if(code.length !== 4) return;
+        partyCode = code; isHost = false; isMultiplayer = true;
+        const partyRef = ref(db, 'parties/' + partyCode);
+
+        try {
+            const snap = await get(partyRef);
+            if(snap.exists()) {
+                const data = snap.val();
+                if (data.state !== 'lobby') { showAnnouncement("ERROR", "Match already started", "#ff3333", 2000); return; }
+                
+                let players = data.players || [];
+                if (!players.find(p => p.uid === localSessionId)) {
+                    players.push({ uid: localSessionId, name: username });
+                    await update(partyRef, { players: players });
+                }
+                listenToParty(partyCode);
+                showLobbyUI();
+            } else { showAnnouncement("ERROR", "Party not found", "#ff3333", 2000); }
+        } catch(e) { console.error(e); }
+    };
+
+    function listenToParty(code) {
+        if (partyUnsub) partyUnsub();
+        partyUnsub = onValue(ref(db, 'parties/' + code), (snapshot) => {
+            if (snapshot.exists()) {
+                partyData = snapshot.val();
+                updateLobbyUI();
+
+                if (partyData.state === 'playing' && gameState === 'lobby') {
+                    setupMultiplayerMatch();
+                } else if (partyData.state === 'playing' && !isHost && partyData.gameState) {
+                    syncNetworkState(partyData.gameState);
+                }
+            } else {
+                window.leaveParty();
+            }
+        }, (err) => console.error(err));
+    }
+
+    function showLobbyUI() {
+        document.getElementById('mp-menu').classList.add('hidden');
+        document.getElementById('lobby-menu').classList.remove('hidden');
+        document.getElementById('lobby-code').innerText = partyCode;
+        if(isHost) {
+            document.getElementById('btn-start-mp').classList.remove('hidden');
+            document.getElementById('lbl-waiting-host').classList.add('hidden');
+            document.getElementById('mp-slider-teams').disabled = false;
+            document.getElementById('mp-slider-players').disabled = false;
+        } else {
+            document.getElementById('btn-start-mp').classList.add('hidden');
+            document.getElementById('lbl-waiting-host').classList.remove('hidden');
+            document.getElementById('mp-slider-teams').disabled = true;
+            document.getElementById('mp-slider-players').disabled = true;
+        }
+        gameState = 'lobby';
+    }
+
+    function updateLobbyUI() {
+        if(!partyData) return;
+        
+        const poolDiv = document.getElementById('mp-pool-list');
+        poolDiv.innerHTML = '';
+        let assignedUids = [];
+        if (partyData.matchConfig && partyData.matchConfig.assignments) {
+            Object.values(partyData.matchConfig.assignments).forEach(arr => assignedUids.push(...arr.filter(u => u !== 'BOT')));
+        }
+        
+        if (partyData.players) {
+            partyData.players.forEach(p => {
+                let isAssigned = assignedUids.includes(p.uid);
+                poolDiv.innerHTML += `<div style="color: ${isAssigned ? '#4CAF50' : '#a0aabf'}; margin-bottom: 4px;">
+                    ${p.name} ${p.uid === partyData.host ? '👑' : ''} ${isAssigned ? '✓' : ''}
+                </div>`;
+            });
+        }
+
+        if (partyData.matchConfig) {
+            document.getElementById('mp-slider-teams').value = partyData.matchConfig.tCount;
+            document.getElementById('mp-val-teams').innerText = partyData.matchConfig.tCount;
+            document.getElementById('mp-slider-players').value = partyData.matchConfig.pCount;
+            document.getElementById('mp-val-players').innerText = partyData.matchConfig.pCount;
+
+            const grid = document.getElementById('mp-teams-grid');
+            grid.innerHTML = '';
+            
+            partyData.matchConfig.teams.forEach(tid => {
+                const team = TEAMS.find(t => t.id === tid);
+                let slotsHTML = '';
+                const slots = partyData.matchConfig.assignments[tid] || [];
+                
+                slots.forEach((uid, idx) => {
+                    let displayName = '🤖 BOT';
+                    let btnStyle = 'background: #2a354d; color: #a0aabf; border: 1px solid rgba(255,255,255,0.1);';
+                    if (uid !== 'BOT') {
+                        const p = partyData.players ? partyData.players.find(x => x.uid === uid) : null;
+                        displayName = p ? p.name : 'Unknown';
+                        btnStyle = 'background: #1c3d1f; color: #fff; border: 1px solid #44ff44;';
+                    }
+                    
+                    slotsHTML += `<button style="padding: 6px; font-size: 11px; width: 100%; justify-content: center; ${btnStyle}" 
+                                   ${isHost ? `onclick="window.cycleMpSlot('${tid}', ${idx})"` : 'disabled'}>
+                                   ${displayName}
+                                 </button>`;
+                });
+
+                grid.innerHTML += `<div style="background: rgba(0,0,0,0.4); padding: 10px; border-radius: 8px; border-left: 4px solid ${team.color1};">
+                    <div style="font-size: 12px; font-weight: bold; margin-bottom: 5px; color:${team.color1};">${team.id}</div>
+                    <div style="display: flex; flex-direction: column; gap: 4px;">${slotsHTML}</div>
+                </div>`;
+            });
+        }
+    }
+
+    window.leaveParty = () => {
+        if (partyUnsub) partyUnsub();
+        if (inputsUnsub) inputsUnsub();
+        isMultiplayer = false; isHost = false; partyCode = null;
+        document.getElementById('lobby-menu').classList.add('hidden');
+        window.resetToMenu();
+    };
+
+    window.startMpMatch = async () => {
+        if(!isHost) return;
+        try {
+            await update(ref(db, 'parties/' + partyCode), { state: 'playing' });
+        } catch(e) { console.error(e); }
+    };
+
+    function setupMultiplayerMatch() {
+        document.getElementById('lobby-menu').classList.add('hidden');
+        document.getElementById('leaderboard').classList.remove('hidden');
+        
+        clearEntities();
+        safeTeams = []; eliminatedTeams = []; tournamentRound = 1; activeTeams = [];
+        camera.position.set(0, 480, 450);
+
+        hasWelcomed = false; 
+        startRound(); 
+
+        if (isHost) listenToClientInputs();
+    }
+
+    // Network Syncing Engine
+    async function pushNetworkState() {
+        if(!isHost || !partyCode) return;
+        const state = {
+            gs: gameState,
+            rnd: tournamentRound,
+            at: activeTeams.map(t => t.id),
+            st: safeTeams.map(t => t.id),
+            et: eliminatedTeams.map(t => t.id),
+            ltb: lastTouchedBy ? lastTouchedBy.id : null, 
+            bp: (ball && ball.possessedBy) ? ball.possessedBy.networkId : null, 
+            ball: ball ? { x: Math.round(ball.x), y: Math.round(ball.y), vx: parseFloat(ball.vx.toFixed(2)), vy: parseFloat(ball.vy.toFixed(2)) } : null,
+            entities: entities.map(e => ({ id: e.networkId, x: Math.round(e.x), y: Math.round(e.y), a: parseFloat(e.facingAngle.toFixed(2)) }))
+        };
+        try { await update(ref(db, 'parties/' + partyCode), { gameState: state }); } catch(e){}
+    }
+
+    function syncNetworkState(state) {
+        if(!state) return;
+        
+        if (state.at) activeTeams = state.at.map(id => TEAMS.find(t => t.id === id)).filter(Boolean);
+        if (state.st) safeTeams = state.st.map(id => TEAMS.find(t => t.id === id)).filter(Boolean);
+        if (state.et) eliminatedTeams = state.et.map(id => TEAMS.find(t => t.id === id)).filter(Boolean);
+        if (state.rnd) tournamentRound = state.rnd;
+        if (state.ltb) lastTouchedBy = TEAMS.find(t => t.id === state.ltb);
+
+        if (state.gs === 'gameover' && gameState !== 'gameover') {
+            triggerGameOver(safeTeams[0] || eliminatedTeams[eliminatedTeams.length - 1]);
+        } else if (state.gs === 'scored' && gameState === 'playing') {
+            gameState = 'scored';
+            spawnConfetti(); audio.playCheer(); updateLeaderboard();
+            const scoringTeam = safeTeams[safeTeams.length - 1] || activeTeams[0];
+            if (scoringTeam) {
+                let remainingMsg = `${state.at.length} TEAM${state.at.length > 1 ? 'S' : ''} LEFT TO QUALIFY`;
+                if (state.at.length === 0) remainingMsg = "KNOCKED OUT OF THE TOURNAMENT";
+                showAnnouncement(`${scoringTeam.name} SCORES!`, remainingMsg, scoringTeam.color1, 1500);
+            }
+        } else if (state.gs === 'playing' && gameState === 'scored') {
+            startRound(); 
+        }
+
+        if (state.bp !== undefined && ball) {
+            if (state.bp === null) {
+                if (ball.possessedBy && ball.possessedBy.ownerUid === localSessionId) {
+                    const bx = state.ball.x - ball.possessedBy.x; const by = state.ball.y - ball.possessedBy.y;
+                    if (bx*bx + by*by > 900) ball.possessedBy = null; 
+                } else if (!ball.possessedBy || ball.possessedBy.ownerUid !== localSessionId || ball.possessionCooldown > 0) {
+                    ball.possessedBy = null;
+                }
+            } else {
+                const possessor = entities.find(e => e.networkId === state.bp);
+                if (possessor) {
+                    if (possessor.ownerUid !== localSessionId) ball.possessedBy = possessor;
+                    else if (!ball.possessedBy && ball.possessionCooldown === 0) ball.possessedBy = possessor;
+                }
+            }
+        }
+
+        if(state.ball && ball) { 
+            ball.targetX = state.ball.x; ball.targetY = state.ball.y; 
+            if (state.ball.vx !== undefined && state.ball.vy !== undefined) {
+                if (Math.abs(state.ball.vx) > 0.5 || Math.abs(state.ball.vy) > 0.5 || (Math.abs(ball.vx) < 3 && Math.abs(ball.vy) < 3)) {
+                    ball.vx = state.ball.vx; ball.vy = state.ball.vy;
+                }
+            }
+        }
+
+        if(state.entities) {
+            state.entities.forEach(netE => {
+                let localE = entities.find(e => e.networkId === netE.id);
+                if(localE) { localE.targetX = netE.x; localE.targetY = netE.y; localE.facingAngle = netE.a; }
+            });
+        }
+    }
+
+    async function sendClientInputs() {
+        if(isHost || !partyCode || !currentUser) return;
+        const now = Date.now();
+        if (now - lastInputSync > 50) { 
+            lastInputSync = now;
+            let dx = 0; let dy = 0;
+            if (keys.ArrowUp || keys.w) dy -= 1; if (keys.ArrowDown || keys.s) dy += 1;
+            if (keys.ArrowLeft || keys.a) dx -= 1; if (keys.ArrowRight || keys.d) dx += 1;
+            if (joystickVector.x !== 0 || joystickVector.y !== 0) { dx = joystickVector.x; dy = joystickVector.y; }
+            
+            let pShoot = keys[' '] || window.pendingNetworkShoot;
+            let pSteal = window.pendingNetworkSteal !== undefined ? window.pendingNetworkSteal : null;
+            let pLost = window.pendingNetworkLost !== undefined ? window.pendingNetworkLost : null;
+            let pGrab = window.pendingNetworkGrab || false;
+
+            window.pendingNetworkShoot = false; window.pendingNetworkSteal = null; window.pendingNetworkLost = null; window.pendingNetworkGrab = false;
+            try { await set(ref(db, 'parties/' + partyCode + '/inputs/' + localSessionId), { dx: dx, dy: dy, s: pShoot, steal: pSteal, lost: pLost, grab: pGrab }); } catch(e){}
+        }
+    }
+
+    function listenToClientInputs() {
+        if(!isHost) return;
+        inputsUnsub = onValue(ref(db, 'parties/' + partyCode + '/inputs'), (snapshot) => {
+            if (snapshot.exists()) {
+                const data = snapshot.val();
+                clientInputs = data;
+            } else {
+                clientInputs = {};
+            }
+        }, (err) => console.error(err));
+    }
+
+    // --- GAME STATE VARIABLES ---
     let gameState = 'menu'; 
     let playerTeam = null;
     let customOpponentTeams = [];
     let currentPlayersPerTeam = 1;
-    let hasWelcomed = false; // Tracks if we've shown the initial welcome
-    
+    let hasWelcomed = false;
     let entities = [];
     let ball = null;
     let goalie = null;
     let lastTouchedBy = null;
-
-    let activeTeams = [];
-    let safeTeams = [];
-    let eliminatedTeams = [];
+    let activeTeams = []; let safeTeams = []; let eliminatedTeams = [];
     let tournamentRound = 1;
-
     let confettiParticles = [];
     let currentLookZ = 20; 
 
     const keys = { ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false, w: false, a: false, s: false, d: false, ' ': false };
     let joystickVector = { x: 0, y: 0 };
-    let teamSelectTarget = null; // 'player' or index for custom opponent
+    let teamSelectTarget = null; 
+
+    // --- MENU / UI LOGIC ---
+    function initMenu() {
+        const grid = document.getElementById('team-selection'); grid.innerHTML = '';
+        TEAMS.forEach(team => {
+            const btn = document.createElement('button'); btn.innerHTML = `<div class="lb-color" style="background:${team.color1}; margin:0;"></div> ${team.name}`; btn.style.borderColor = team.color1; btn.onclick = () => window.selectTeam(team); grid.appendChild(btn);
+        });
+        if (!playerTeam) { playerTeam = TEAMS[Math.floor(Math.random() * TEAMS.length)]; window.updateTopRightUI(); }
+        document.getElementById('top-right-team').classList.remove('hidden');
+        if ('ontouchstart' in window || navigator.maxTouchPoints > 0) { document.getElementById('joystick-zone').style.display = 'block'; document.getElementById('shoot-btn').style.display = 'block'; setupJoystick(); }
+    }
+
+    window.updateTopRightUI = () => { document.getElementById('tr-name').innerText = playerTeam.name; document.getElementById('tr-color').style.backgroundColor = playerTeam.color1; };
+    window.openTeamSelect = (target) => { teamSelectTarget = target; document.getElementById('team-select-modal').classList.remove('hidden'); };
+    window.closeTeamSelect = () => { document.getElementById('team-select-modal').classList.add('hidden'); };
+    window.selectTeam = (team) => { if (teamSelectTarget === 'player') { playerTeam = team; window.updateTopRightUI(); } else if (typeof teamSelectTarget === 'number') { customOpponentTeams[teamSelectTarget] = team; window.updateCustomUI(); } window.closeTeamSelect(); };
+
+    window.startMode = (modeStr) => {
+        isMultiplayer = false; isHost = true;
+        let tCount = 4; let pCount = 1;
+        if (modeStr === 'classic') { tCount = 4; pCount = 1; } else if (modeStr === 'duos') { tCount = 4; pCount = 2; } else if (modeStr === 'trios') { tCount = 3; pCount = 3; } else if (modeStr === 'quads') { tCount = 3; pCount = 4; } else if (modeStr === 'ffa') { tCount = 8; pCount = 1; }
+        currentPlayersPerTeam = pCount;
+        const opponentsPool = TEAMS.filter(t => t.id !== playerTeam.id).sort(() => 0.5 - Math.random());
+        activeTeams = [playerTeam, ...opponentsPool.slice(0, tCount - 1)];
+        launchTournament();
+    };
+
+    window.openCustomMenu = () => { document.getElementById('menu-screen').classList.add('hidden'); document.getElementById('top-right-team').classList.add('hidden'); document.getElementById('custom-modal').classList.remove('hidden'); const desiredOpponents = parseInt(document.getElementById('slider-teams').value) - 1; if (customOpponentTeams.length !== desiredOpponents) { const pool = TEAMS.filter(t => t.id !== playerTeam.id).sort(() => 0.5 - Math.random()); customOpponentTeams = pool.slice(0, desiredOpponents); } window.updateCustomUI(); };
+    window.closeCustomMenu = () => { document.getElementById('custom-modal').classList.add('hidden'); document.getElementById('menu-screen').classList.remove('hidden'); document.getElementById('top-right-team').classList.remove('hidden'); };
+    window.updateCustomUI = () => {
+        const tCount = parseInt(document.getElementById('slider-teams').value); const pCount = parseInt(document.getElementById('slider-players').value);
+        document.getElementById('val-teams').innerText = tCount; document.getElementById('val-players').innerText = pCount;
+        const oppCount = tCount - 1;
+        while(customOpponentTeams.length < oppCount) { const pool = TEAMS.filter(t => t.id !== playerTeam.id && !customOpponentTeams.includes(t)); customOpponentTeams.push(pool[Math.floor(Math.random() * pool.length)]); }
+        if(customOpponentTeams.length > oppCount) customOpponentTeams.length = oppCount;
+        const list = document.getElementById('opponents-list'); list.innerHTML = '';
+        customOpponentTeams.forEach((team, idx) => { const btn = document.createElement('button'); btn.className = 'opp-btn'; btn.style.borderColor = team.color1; btn.innerHTML = `<div class="lb-color" style="background:${team.color1}; margin:0;"></div> ${team.id}`; btn.onclick = () => window.openTeamSelect(idx); list.appendChild(btn); });
+    };
+    window.startCustomMode = () => { isMultiplayer = false; isHost = true; currentPlayersPerTeam = parseInt(document.getElementById('slider-players').value); activeTeams = [playerTeam, ...customOpponentTeams]; window.closeCustomMenu(); launchTournament(); };
+
+    // --- TOURNAMENT LOGIC ---
+    function launchTournament() {
+        document.getElementById('menu-screen').classList.add('hidden'); document.getElementById('top-right-team').classList.add('hidden'); document.getElementById('game-over-screen').classList.add('hidden'); document.getElementById('leaderboard').classList.remove('hidden');
+        safeTeams = []; eliminatedTeams = []; tournamentRound = 1;
+        camera.position.set(0, 480, 450); startRound();
+    }
+
 
     // --- CLASSES ---
-
     class Entity {
-        constructor(x, y, size, team, isAI = true, aiType = 'tactical') {
-            this.x = x; this.y = y; this.size = size; 
-            this.team = team; this.isAI = isAI; this.aiType = aiType; 
+        constructor(x, y, size, team, isAI = true, aiType = 'tactical', ownerUid = 'AI', playerName = '') {
+            this.x = x; this.y = y; this.size = size; this.team = team; this.isAI = isAI; this.aiType = aiType; 
+            this.ownerUid = ownerUid; this.playerName = playerName;
             this.vx = 0; this.vy = 0; this.speed = 0.7; this.friction = 0.8;
             this.isGoalie = false; this.wanderAngle = Math.random() * Math.PI * 2; 
             this.facingAngle = -Math.PI / 2; this.stealCooldown = 0; 
+            this.targetX = x; this.targetY = y; 
 
-            this.mesh = this.createMesh();
-            scene.add(this.mesh);
-            this.updateMeshPosition();
+            this.mesh = this.createMesh(); scene.add(this.mesh); this.updateMeshPosition();
         }
 
         createMesh() {
             const group = new THREE.Group();
-            const shorts = new THREE.Mesh(new THREE.CylinderGeometry(5, 5, 8, 12), new THREE.MeshStandardMaterial({ color: this.team.color2, roughness: 0.7 }));
-            shorts.position.y = 4; group.add(shorts);
+            const shorts = new THREE.Mesh(new THREE.CylinderGeometry(5, 5, 8, 12), new THREE.MeshStandardMaterial({ color: this.team.color2, roughness: 0.7 })); shorts.position.y = 4; group.add(shorts);
+            const shirt = new THREE.Mesh(new THREE.CylinderGeometry(5, 5, 10, 12), new THREE.MeshStandardMaterial({ color: this.team.color1, roughness: 0.7 })); shirt.position.y = 13; group.add(shirt);
+            const head = new THREE.Mesh(new THREE.BoxGeometry(8, 8, 8), new THREE.MeshStandardMaterial({ color: 0xFFC1CC, roughness: 0.5 })); head.position.y = 22; group.add(head);
 
-            const shirt = new THREE.Mesh(new THREE.CylinderGeometry(5, 5, 10, 12), new THREE.MeshStandardMaterial({ color: this.team.color1, roughness: 0.7 }));
-            shirt.position.y = 13; group.add(shirt);
+            if (isMultiplayer) { 
+                let mColor = null; let showName = false; let nColor = '#ffffff';
 
-            const head = new THREE.Mesh(new THREE.BoxGeometry(8, 8, 8), new THREE.MeshStandardMaterial({ color: 0xFFC1CC, roughness: 0.5 }));
-            head.position.y = 22; group.add(head);
+                if (this.ownerUid === localSessionId) {
+                    // Local Human
+                    mColor = 0xffff00; showName = true; nColor = '#ffff00';
+                } else if (!this.isAI && playerTeam && this.team.id === playerTeam.id) {
+                    // Human Teammate
+                    mColor = 0x00ffff; showName = true; nColor = '#00ffff';
+                } else if (!this.isAI && playerTeam && this.team.id !== playerTeam.id) {
+                    // Human Enemy
+                    mColor = 0xff0000; showName = true; nColor = '#ff0000';
+                } else if (this.isAI && playerTeam && this.team.id === playerTeam.id) {
+                    // Bot Teammate (No name)
+                    mColor = 0x00ffff; 
+                } // Bot enemy gets nothing
 
-            // Yellow indicator for human player, Cyan indicator for teammates
-            if (!this.isAI) {
-                const marker = new THREE.Mesh(new THREE.ConeGeometry(4, 8, 4), new THREE.MeshBasicMaterial({ color: 0xffff00 }));
-                marker.position.y = 35; marker.rotation.x = Math.PI; group.add(marker);
-            } else if (playerTeam && this.team.id === playerTeam.id) {
-                const marker = new THREE.Mesh(new THREE.ConeGeometry(3, 6, 4), new THREE.MeshBasicMaterial({ color: 0x00ffff }));
-                marker.position.y = 32; marker.rotation.x = Math.PI; group.add(marker);
+                if (mColor !== null) {
+                    const marker = new THREE.Mesh(new THREE.ConeGeometry(4, 8, 4), new THREE.MeshBasicMaterial({ color: mColor })); 
+                    marker.position.y = 35; marker.rotation.x = Math.PI; group.add(marker);
+                }
+
+                if (showName && this.playerName && this.playerName !== 'BOT') {
+                    const canvas = document.createElement('canvas'); canvas.width = 256; canvas.height = 64;
+                    const ctx = canvas.getContext('2d'); ctx.font = 'bold 28px "Poppins", sans-serif'; 
+                    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = nColor;
+                    ctx.shadowColor = "rgba(0,0,0,0.8)"; ctx.shadowBlur = 4;
+                    ctx.fillText(this.playerName.substring(0,12), 128, 32);
+                    const tex = new THREE.CanvasTexture(canvas);
+                    const spriteMat = new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true });
+                    const sprite = new THREE.Sprite(spriteMat); sprite.scale.set(30, 7.5, 1);
+                    sprite.position.y = 48; sprite.renderOrder = 999; group.add(sprite);
+                }
+
+            } else {
+                if (this.ownerUid === localSessionId) {
+                    const marker = new THREE.Mesh(new THREE.ConeGeometry(4, 8, 4), new THREE.MeshBasicMaterial({ color: 0xffff00 })); marker.position.y = 35; marker.rotation.x = Math.PI; group.add(marker);
+                } else if (playerTeam && this.team.id === playerTeam.id) {
+                    const marker = new THREE.Mesh(new THREE.ConeGeometry(3, 6, 4), new THREE.MeshBasicMaterial({ color: 0x00ffff })); marker.position.y = 32; marker.rotation.x = Math.PI; group.add(marker);
+                }
             }
             return group;
         }
 
         update() {
+            if (isMultiplayer && !isHost) {
+                if (this.ownerUid === localSessionId) {
+                    if (this.stealCooldown > 0) this.stealCooldown--;
+                    this.handleInput();
+                    this.x += this.vx; this.y += this.vy;
+                    this.vx *= this.friction; this.vy *= this.friction;
+                    
+                    if (this.x < this.size/2) this.x = this.size/2; if (this.x > V_WIDTH - this.size/2) this.x = V_WIDTH - this.size/2;
+                    if (this.y < this.size/2) this.y = this.size/2; if (this.y > V_HEIGHT - this.size/2) this.y = V_HEIGHT - this.size/2;
+                    if (this.y < 20 && this.x > V_WIDTH/2 - 60 && this.x < V_WIDTH/2 + 60 && !this.isGoalie) this.y = 20;
+
+                    for (let opp of entities) {
+                        if (opp !== this) {
+                            let dX = opp.x - this.x; let dY = opp.y - this.y;
+                            let dist = Math.sqrt(dX*dX + dY*dY); let minDist = (this.size + opp.size)/2;
+                            if (dist < minDist && dist > 0) {
+                                let overlap = minDist - dist;
+                                this.x -= (dX/dist) * overlap * 0.2; 
+                                this.y -= (dY/dist) * overlap * 0.2;
+
+                                if (ball && this.team !== opp.team && !this.isGoalie && !opp.isGoalie) {
+                                    if (ball.possessedBy === opp && this.stealCooldown === 0) {
+                                        ball.possessedBy = this; opp.stealCooldown = 60; lastTouchedBy = this.team; audio.playSteal();
+                                        window.pendingNetworkSteal = opp.networkId; 
+                                    } else if (ball.possessedBy === this && opp.stealCooldown === 0) {
+                                        ball.possessedBy = opp; this.stealCooldown = 60; lastTouchedBy = opp.team; audio.playSteal();
+                                        window.pendingNetworkLost = opp.networkId;  
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    const dx = this.targetX - this.x; const dy = this.targetY - this.y;
+                    if (dx*dx + dy*dy > 6400) { this.x = this.targetX; this.y = this.targetY; } 
+                    
+                    this.checkBallCollision(); 
+                    this.updateMeshPosition();
+                    return;
+                } else {
+                    this.x += (this.targetX - this.x) * 0.3; this.y += (this.targetY - this.y) * 0.3;
+                    this.updateMeshPosition();
+                    if (this.isGoalie && ball) this.checkBallCollision();
+                    return;
+                }
+            }
+
             if (this.stealCooldown > 0) this.stealCooldown--;
-            this.x += this.vx; this.y += this.vy;
-            this.vx *= this.friction; this.vy *= this.friction;
+            this.x += this.vx; this.y += this.vy; this.vx *= this.friction; this.vy *= this.friction;
 
-            if (this.x < this.size/2) this.x = this.size/2;
-            if (this.x > V_WIDTH - this.size/2) this.x = V_WIDTH - this.size/2;
-            if (this.y < this.size/2) this.y = this.size/2;
-            if (this.y > V_HEIGHT - this.size/2) this.y = V_HEIGHT - this.size/2;
+            if (this.x < this.size/2) this.x = this.size/2; if (this.x > V_WIDTH - this.size/2) this.x = V_WIDTH - this.size/2;
+            if (this.y < this.size/2) this.y = this.size/2; if (this.y > V_HEIGHT - this.size/2) this.y = V_HEIGHT - this.size/2;
+            if (this.y < 20 && this.x > V_WIDTH/2 - 60 && this.x < V_WIDTH/2 + 60 && !this.isGoalie) this.y = 20; 
 
-            const goalLeft = V_WIDTH/2 - 60; const goalRight = V_WIDTH/2 + 60;
-            if (this.y < 20 && this.x > goalLeft && this.x < goalRight && !this.isGoalie) this.y = 20; 
-
-            if (this.isAI && gameState === 'playing') this.runAI();
+            if (this.isAI && gameState === 'playing' && (!isMultiplayer || isHost)) this.runAI();
             else if (!this.isAI && gameState === 'playing') this.handleInput();
 
-            this.checkBallCollision();
-            this.updateMeshPosition();
+            this.checkBallCollision(); this.updateMeshPosition();
         }
 
         updateMeshPosition() {
             this.mesh.position.set(get3DX(this.x), 0, get3DZ(this.y));
-            if (Math.abs(this.vx) > 0.1 || Math.abs(this.vy) > 0.1) {
-                this.facingAngle = Math.atan2(this.vy, this.vx); 
-                this.mesh.rotation.y = Math.atan2(this.vx, this.vy);
+            if (isMultiplayer && !isHost && this.ownerUid !== localSessionId) { 
+                this.mesh.rotation.y = Math.PI/2 - this.facingAngle; 
+            } else if (Math.abs(this.vx) > 0.1 || Math.abs(this.vy) > 0.1) {
+                this.facingAngle = Math.atan2(this.vy, this.vx); this.mesh.rotation.y = Math.atan2(this.vx, this.vy);
             }
         }
 
         handleInput() {
-            let dx = 0; let dy = 0;
-            if (keys.ArrowUp || keys.w) dy -= 1;
-            if (keys.ArrowDown || keys.s) dy += 1;
-            if (keys.ArrowLeft || keys.a) dx -= 1;
-            if (keys.ArrowRight || keys.d) dx += 1;
-
-            if (joystickVector.x !== 0 || joystickVector.y !== 0) { dx = joystickVector.x; dy = joystickVector.y; }
+            let dx = 0; let dy = 0; let shootKey = false;
+            
+            if (isMultiplayer) {
+                if (this.ownerUid === localSessionId) { 
+                    if (keys.ArrowUp || keys.w) dy -= 1; if (keys.ArrowDown || keys.s) dy += 1;
+                    if (keys.ArrowLeft || keys.a) dx -= 1; if (keys.ArrowRight || keys.d) dx += 1;
+                    if (joystickVector.x !== 0 || joystickVector.y !== 0) { dx = joystickVector.x; dy = joystickVector.y; }
+                    shootKey = keys[' '];
+                } else if (isHost) { 
+                    let inputs = clientInputs[this.ownerUid];
+                    if (inputs) { 
+                        dx = inputs.dx; dy = inputs.dy; shootKey = inputs.s; 
+                        if (inputs.steal !== undefined && inputs.steal !== null) {
+                            let target = entities.find(e => e.networkId === inputs.steal);
+                            if (target && ball && ball.possessedBy === target) {
+                                ball.possessedBy = this; target.stealCooldown = 60; lastTouchedBy = this.team;
+                            }
+                            inputs.steal = null; 
+                        }
+                        if (inputs.lost !== undefined && inputs.lost !== null) {
+                            let target = entities.find(e => e.networkId === inputs.lost);
+                            if (target && ball && ball.possessedBy === this) {
+                                ball.possessedBy = target; this.stealCooldown = 60; lastTouchedBy = target.team;
+                            }
+                            inputs.lost = null; 
+                        }
+                        if (inputs.grab) {
+                            if (ball && !ball.possessedBy) { ball.possessedBy = this; lastTouchedBy = this.team; }
+                            inputs.grab = false; 
+                        }
+                    }
+                }
+            } else {
+                if (keys.ArrowUp || keys.w) dy -= 1; if (keys.ArrowDown || keys.s) dy += 1;
+                if (keys.ArrowLeft || keys.a) dx -= 1; if (keys.ArrowRight || keys.d) dx += 1;
+                if (joystickVector.x !== 0 || joystickVector.y !== 0) { dx = joystickVector.x; dy = joystickVector.y; }
+                shootKey = keys[' '];
+            }
 
             if (dx !== 0 || dy !== 0) {
                 const len = Math.sqrt(dx*dx + dy*dy);
-                let currentSpeed = this.speed;
-                if (ball && ball.possessedBy === this) currentSpeed *= 0.6; 
-                this.vx += (dx / len) * currentSpeed * 0.4;
-                this.vy += (dy / len) * currentSpeed * 0.4;
+                let currentSpeed = this.speed; if (ball && ball.possessedBy === this) currentSpeed *= 0.6; 
+                this.vx += (dx / len) * currentSpeed * 0.4; this.vy += (dy / len) * currentSpeed * 0.4;
             }
-
-            if (keys[' ']) { shootBall(this); keys[' '] = false; }
+            
+            if (shootKey && (!isMultiplayer || this.ownerUid === localSessionId)) { 
+                shootBall(this); keys[' '] = false; 
+                if (isMultiplayer && !isHost) window.pendingNetworkShoot = true; 
+            }
+            else if (shootKey && isMultiplayer && isHost) { 
+                shootBall(this); if (clientInputs[this.ownerUid]) clientInputs[this.ownerUid].s = false; 
+            }
         }
 
         runAI() {
             if (!ball) return;
             const goalX = V_WIDTH / 2; const goalY = 20;
 
-            // AI Teammate Support & Getting Open Logic
             if (ball.possessedBy && ball.possessedBy.team === this.team && ball.possessedBy !== this) {
-                let targetX = goalX; 
-                let targetY = ball.possessedBy.y - 80; // Push upfield ahead of the ball
-                
-                // Spread out wide
-                let sideOffset = this.x < ball.possessedBy.x ? -60 : 60;
-                targetX = ball.possessedBy.x + sideOffset;
-
-                // Keep within bounds
+                let targetX = goalX; let targetY = ball.possessedBy.y - 80; 
+                let sideOffset = this.x < ball.possessedBy.x ? -60 : 60; targetX = ball.possessedBy.x + sideOffset;
                 if (targetX < 20) targetX = 20; if (targetX > V_WIDTH - 20) targetX = V_WIDTH - 20;
                 if (targetY < 40) targetY = 40; if (targetY > V_HEIGHT - 20) targetY = V_HEIGHT - 20;
 
                 let dxToSpace = targetX - this.x; let dyToSpace = targetY - this.y;
                 let dist = Math.sqrt(dxToSpace*dxToSpace + dyToSpace*dyToSpace);
 
-                // Evade nearby defenders to "get open"
                 let evadeX = 0; let evadeY = 0;
                 for (let opp of entities) {
                     if (opp.team !== this.team && !opp.isGoalie) {
                         let dX = this.x - opp.x; let dY = this.y - opp.y;
                         let oppDist = Math.sqrt(dX*dX + dY*dY);
-                        if (oppDist < 50 && oppDist > 0) {
-                            evadeX += dX / oppDist; evadeY += dY / oppDist;
-                        }
+                        if (oppDist < 50 && oppDist > 0) { evadeX += dX / oppDist; evadeY += dY / oppDist; }
                     }
                 }
 
                 let moveX = 0; let moveY = 0;
-                if (dist > 0) {
-                    moveX = (dxToSpace/dist) + (evadeX * 1.5);
-                    moveY = (dyToSpace/dist) + (evadeY * 1.5);
-                }
-
+                if (dist > 0) { moveX = (dxToSpace/dist) + (evadeX * 1.5); moveY = (dyToSpace/dist) + (evadeY * 1.5); }
                 let moveDist = Math.sqrt(moveX*moveX + moveY*moveY);
-                if (moveDist > 0) {
-                    this.vx += (moveX/moveDist) * this.speed * 0.25;
-                    this.vy += (moveY/moveDist) * this.speed * 0.25;
-                }
+                if (moveDist > 0) { this.vx += (moveX/moveDist) * this.speed * 0.25; this.vy += (moveY/moveDist) * this.speed * 0.25; }
                 return;
             }
 
-            // Dribbling, Shooting, and Passing Logic
             if (ball.possessedBy === this) {
                 let dxToGoal = goalX - this.x; let dyToGoal = goalY - this.y;
                 let distToGoal = Math.sqrt(dxToGoal*dxToGoal + dyToGoal*dyToGoal);
                 
-                // Shoot if close to goal
                 if (distToGoal < 120) {
                     let aimX = goalX;
-                    
-                    // If the goalie is holding the line, strategically aim for the corners
-                    if (goalie && !goalie.isCharging && Math.random() > 0.3) {
-                        // Aim for the corner opposite to the goalie's current position
-                        aimX = goalie.x < goalX ? goalX + 45 : goalX - 45;
-                    }
-                    
-                    this.facingAngle = Math.atan2(goalY - this.y, aimX - this.x);
-                    shootBall(this);
-                    return;
+                    if (goalie && !goalie.isCharging && Math.random() > 0.3) aimX = goalie.x < goalX ? goalX + 45 : goalX - 45;
+                    this.facingAngle = Math.atan2(goalY - this.y, aimX - this.x); shootBall(this); return;
                 }
                 
-                // Look for an open pass (Check periodically to avoid robotic instant-passing)
                 if (Math.random() < 0.1) {
-                    let bestTarget = null;
-                    let bestScore = -999;
-
+                    let bestTarget = null; let bestScore = -999;
                     for (let e of entities) {
                         if (e !== this && e.team === this.team && !e.isGoalie) {
                             let eDistToGoal = Math.sqrt((goalX - e.x)**2 + (goalY - e.y)**2);
-                            // Pass forward or sideways, not backwards (unless very blocked, but let's keep it simple)
                             if (eDistToGoal < distToGoal + 10) { 
                                 let laneOpen = true;
                                 for (let opp of entities) {
                                     if (opp.team !== this.team && !opp.isGoalie) {
-                                        let distToLine = pointToLineDistance(opp.x, opp.y, this.x, this.y, e.x, e.y);
-                                        // If an opponent is within 25 units of the pass trajectory, the lane is blocked
-                                        if (distToLine < 25) { laneOpen = false; break; }
+                                        if (pointToLineDistance(opp.x, opp.y, this.x, this.y, e.x, e.y) < 25) { laneOpen = false; break; }
                                     }
                                 }
                                 if (laneOpen) {
-                                    // Heavily prefer passing to the human player!
                                     let score = -eDistToGoal + (!e.isAI ? 200 : 0);
                                     if (score > bestScore) { bestScore = score; bestTarget = e; }
                                 }
                             }
                         }
                     }
-
-                    if (bestTarget) {
-                        let dx = bestTarget.x - this.x; let dy = bestTarget.y - this.y;
-                        this.facingAngle = Math.atan2(dy, dx);
-                        passBall(this);
-                        return;
-                    }
+                    if (bestTarget) { this.facingAngle = Math.atan2(bestTarget.y - this.y, bestTarget.x - this.x); passBall(this); return; }
                 }
 
-                // Drive towards the goal if no pass is open
-                if (distToGoal > 0) {
-                    this.vx += (dxToGoal / distToGoal) * this.speed * 0.35;
-                    this.vy += (dyToGoal / distToGoal) * this.speed * 0.35;
-                }
+                if (distToGoal > 0) { this.vx += (dxToGoal / distToGoal) * this.speed * 0.35; this.vy += (dyToGoal / distToGoal) * this.speed * 0.35; }
                 return; 
             }
 
             let dx = ball.x - this.x; let dy = ball.y - this.y;
-            const distToBall = Math.sqrt(dx*dx + dy*dy);
-            let targetX, targetY;
-
+            const distToBall = Math.sqrt(dx*dx + dy*dy); let targetX, targetY;
             this.wanderAngle += (Math.random() - 0.5) * 0.3;
-            const wanderX = Math.cos(this.wanderAngle) * 0.6;
-            const wanderY = Math.sin(this.wanderAngle) * 0.6;
+            const wanderX = Math.cos(this.wanderAngle) * 0.6; const wanderY = Math.sin(this.wanderAngle) * 0.6;
 
             if (this.aiType === 'aggressive') { targetX = dx; targetY = dy; } 
             else if (this.aiType === 'camper') {
-                // Move the "camper" up to midfield so they don't get stuck in the back
-                if (distToBall < 180 || ball.y > this.y) { targetX = dx; targetY = dy; } 
-                else { targetX = ball.x - this.x; targetY = (V_HEIGHT * 0.4) - this.y; }
+                if (distToBall < 180 || ball.y > this.y) { targetX = dx; targetY = dy; } else { targetX = ball.x - this.x; targetY = (V_HEIGHT * 0.4) - this.y; }
             } else {
-                // Tactical (Default)
                 if (this.y < ball.y - 5 && ball.y < V_HEIGHT - 35) {
-                    let sideOffset = this.x < ball.x ? -35 : 35; 
-                    let desiredX = ball.x + sideOffset; 
-                    let desiredY = ball.y + 25;
-                    
-                    // If the ball is pinned against the back wall, swoop in from the side instead of going behind
-                    if (ball.y > V_HEIGHT - 30) {
-                        desiredY = ball.y; 
-                        desiredX = ball.x + (this.x < ball.x ? -25 : 25);
-                    }
-
+                    let desiredX = ball.x + (this.x < ball.x ? -35 : 35); let desiredY = ball.y + 25;
+                    if (ball.y > V_HEIGHT - 30) { desiredY = ball.y; desiredX = ball.x + (this.x < ball.x ? -25 : 25); }
                     if (desiredX < 20) desiredX = 20; if (desiredX > V_WIDTH - 20) desiredX = V_WIDTH - 20;
                     if (desiredY > V_HEIGHT - 20) desiredY = V_HEIGHT - 20;
-                    
                     targetX = desiredX - this.x; targetY = desiredY - this.y;
                 } else { targetX = dx; targetY = dy; }
             }
@@ -1015,18 +1234,15 @@
             if (len > 0) {
                 let moveX = (targetX / len) + wanderX; let moveY = (targetY / len) + wanderY;
                 const moveLen = Math.sqrt(moveX*moveX + moveY*moveY);
-                let currentSpeed = this.speed;
-                if (ball && ball.possessedBy === this) currentSpeed *= 0.6;
-                this.vx += (moveX / moveLen) * currentSpeed * 0.25;
-                this.vy += (moveY / moveLen) * currentSpeed * 0.25;
+                let currentSpeed = this.speed; if (ball && ball.possessedBy === this) currentSpeed *= 0.6;
+                this.vx += (moveX / moveLen) * currentSpeed * 0.25; this.vy += (moveY / moveLen) * currentSpeed * 0.25;
             }
         }
 
         checkBallCollision() {
             if (!ball) return;
             let distX = Math.abs(ball.x - this.x); let distY = Math.abs(ball.y - this.y);
-            if (distX > (this.size/2 + ball.radius)) return;
-            if (distY > (this.size/2 + ball.radius)) return;
+            if (distX > (this.size/2 + ball.radius)) return; if (distY > (this.size/2 + ball.radius)) return;
             if (distX <= (this.size/2) || distY <= (this.size/2)) { resolveCollision(this, ball); return; } 
             let dx = distX - this.size/2; let dy = distY - this.size/2;
             if (dx*dx + dy*dy <= (ball.radius*ball.radius)) resolveCollision(this, ball);
@@ -1035,73 +1251,42 @@
 
     class Goalie extends Entity {
         constructor() {
-            super(V_WIDTH/2, 60, 24, {color1: '#FFA500', color2: '#222222'}, true);
+            super(V_WIDTH/2, 60, 24, {color1: '#FFA500', color2: '#222222'}, true, 'goalie', 'AI', '');
             this.isGoalie = true; this.speed = 1.35; this.startY = 60;
-            this.wasBallInZone = false; this.isCharging = false;
-            this.diveTargetX = null; // Tracks their commitment to a dive
+            this.wasBallInZone = false; this.isCharging = false; this.diveTargetX = null; 
         }
-
         createMesh() {
             const group = new THREE.Group();
-            const body = new THREE.Mesh(new THREE.BoxGeometry(16, 16, 10), new THREE.MeshLambertMaterial({ color: 0xFFA500 }));
-            body.position.y = 8; group.add(body);
-            const gloveGeo = new THREE.BoxGeometry(4, 6, 6); const gloveMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
-            const leftGlove = new THREE.Mesh(gloveGeo, gloveMat); leftGlove.position.set(-10, 8, 2); group.add(leftGlove);
-            const rightGlove = new THREE.Mesh(gloveGeo, gloveMat); rightGlove.position.set(10, 8, 2); group.add(rightGlove);
+            const body = new THREE.Mesh(new THREE.BoxGeometry(16, 16, 10), new THREE.MeshLambertMaterial({ color: 0xFFA500 })); body.position.y = 8; group.add(body);
+            const gloveMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
+            const lg = new THREE.Mesh(new THREE.BoxGeometry(4, 6, 6), gloveMat); lg.position.set(-10, 8, 2); group.add(lg);
+            const rg = new THREE.Mesh(new THREE.BoxGeometry(4, 6, 6), gloveMat); rg.position.set(10, 8, 2); group.add(rg);
             return group;
         }
-
-        updateMeshPosition() {
-            this.mesh.position.set(get3DX(this.x), 0, get3DZ(this.y));
-            this.mesh.rotation.y = 0; this.facingAngle = Math.PI / 2;
-        }
-
+        updateMeshPosition() { this.mesh.position.set(get3DX(this.x), 0, get3DZ(this.y)); this.mesh.rotation.y = 0; this.facingAngle = Math.PI / 2; }
         runAI() {
             if (!ball) return;
-            let targetX = ball.x;
-            const goalLeft = V_WIDTH/2 - 50; const goalRight = V_WIDTH/2 + 50;
-
-            let targetY = this.startY;
-            let ballInZone = (ball.y < 160 && ball.x > goalLeft - 40 && ball.x < goalRight + 40);
+            let targetX = ball.x; const goalLeft = V_WIDTH/2 - 50; const goalRight = V_WIDTH/2 + 50;
+            let targetY = this.startY; let ballInZone = (ball.y < 160 && ball.x > goalLeft - 40 && ball.x < goalRight + 40);
             
             if (ballInZone) {
-                if (!this.wasBallInZone) {
-                    this.isCharging = Math.random() > 0.4; 
-                    this.diveTargetX = null; // Reset dive on new entry
-                }
+                if (!this.wasBallInZone) { this.isCharging = Math.random() > 0.4; this.diveTargetX = null; }
                 this.wasBallInZone = true;
-            } else { 
-                this.wasBallInZone = false; 
-                this.isCharging = false; 
-                this.diveTargetX = null;
-            }
+            } else { this.wasBallInZone = false; this.isCharging = false; this.diveTargetX = null; }
 
             if (this.isCharging) {
-                targetY = Math.max(20, ball.y - 15); 
-                if (targetY > 120) targetY = 120; 
-                targetX = ball.x;
+                targetY = Math.max(20, ball.y - 15); if (targetY > 120) targetY = 120; targetX = ball.x;
             } else {
-                // On the goal line: Reaction logic for fast shots!
                 if (ball.vy < -3 && ballInZone) {
                     if (this.diveTargetX === null) {
-                        // 35% chance to dive the wrong way!
-                        if (Math.random() < 0.35) {
-                            this.diveTargetX = ball.x < V_WIDTH/2 ? goalRight : goalLeft;
-                        } else {
-                            // Predict the shot correctly
-                            this.diveTargetX = ball.x + (ball.vx * 10); 
-                        }
+                        if (Math.random() < 0.35) this.diveTargetX = ball.x < V_WIDTH/2 ? goalRight : goalLeft;
+                        else this.diveTargetX = ball.x + (ball.vx * 10); 
                     }
                     targetX = this.diveTargetX;
-                } else {
-                    this.diveTargetX = null;
-                    targetX = ball.x;
-                }
+                } else { this.diveTargetX = null; targetX = ball.x; }
             }
 
-            if (targetX < goalLeft) targetX = goalLeft; 
-            if (targetX > goalRight) targetX = goalRight;
-
+            if (targetX < goalLeft) targetX = goalLeft; if (targetX > goalRight) targetX = goalRight;
             let dx = targetX - this.x; let dy = targetY - this.y;
             if (Math.abs(dx) > 5) this.vx += Math.sign(dx) * this.speed * 0.4; else this.vx *= 0.5;
             if (Math.abs(dy) > 5) this.vy += Math.sign(dy) * this.speed * 0.4; else this.vy *= 0.5;
@@ -1111,25 +1296,36 @@
     class Ball {
         constructor(x, y) {
             this.x = x; this.y = y; this.radius = 6; this.vx = 0; this.vy = 0; this.friction = 0.96;
-            this.possessedBy = null; this.possessionCooldown = 0; 
-            
-            this.mesh = new THREE.Mesh(new THREE.IcosahedronGeometry(this.radius, 1), new THREE.MeshLambertMaterial({ color: 0xffffff }));
-            this.mesh.castShadow = true; scene.add(this.mesh);
-            this.updateMeshPosition();
+            this.possessedBy = null; this.possessionCooldown = 0; this.targetX = x; this.targetY = y;
+            this.mesh = new THREE.Mesh(new THREE.IcosahedronGeometry(this.radius, 1), new THREE.MeshLambertMaterial({ color: 0xffffff })); this.mesh.castShadow = true; scene.add(this.mesh); this.updateMeshPosition();
         }
-
         update() {
-            if (this.possessionCooldown > 0) this.possessionCooldown--;
+            if (isMultiplayer && !isHost) {
+                if (this.possessionCooldown > 0) this.possessionCooldown--;
 
+                if (this.possessedBy) {
+                    const offset = 14; 
+                    this.x = this.possessedBy.x + Math.cos(this.possessedBy.facingAngle) * offset; 
+                    this.y = this.possessedBy.y + Math.sin(this.possessedBy.facingAngle) * offset;
+                    this.vx = this.possessedBy.vx; this.vy = this.possessedBy.vy;
+                } else {
+                    this.x += this.vx; this.y += this.vy; this.vx *= this.friction; this.vy *= this.friction;
+                    const dx = this.targetX - this.x; const dy = this.targetY - this.y;
+                    this.x += dx * 0.15; this.y += dy * 0.15; 
+                    if (dx*dx + dy*dy > 2500) { this.x = this.targetX; this.y = this.targetY; }
+                }
+                
+                this.updateMeshPosition();
+                return;
+            }
+
+            if (this.possessionCooldown > 0) this.possessionCooldown--;
             if (this.possessedBy) {
                 const offset = 14; 
-                this.x = this.possessedBy.x + Math.cos(this.possessedBy.facingAngle) * offset;
-                this.y = this.possessedBy.y + Math.sin(this.possessedBy.facingAngle) * offset;
+                this.x = this.possessedBy.x + Math.cos(this.possessedBy.facingAngle) * offset; this.y = this.possessedBy.y + Math.sin(this.possessedBy.facingAngle) * offset;
                 this.vx = this.possessedBy.vx; this.vy = this.possessedBy.vy;
             } else {
-                this.x += this.vx; this.y += this.vy;
-                this.vx *= this.friction; this.vy *= this.friction;
-
+                this.x += this.vx; this.y += this.vy; this.vx *= this.friction; this.vy *= this.friction;
                 if (this.x < this.radius) { this.x = this.radius; this.vx *= -0.8; audio.playDribble(); }
                 if (this.x > V_WIDTH - this.radius) { this.x = V_WIDTH - this.radius; this.vx *= -0.8; audio.playDribble(); }
                 if (this.y > V_HEIGHT - this.radius) { this.y = V_HEIGHT - this.radius; this.vy *= -0.8; audio.playDribble(); }
@@ -1145,441 +1341,161 @@
             this.updateMeshPosition();
         }
 
-        updateMeshPosition() {
-            this.mesh.position.set(get3DX(this.x), this.radius, get3DZ(this.y));
-            this.mesh.rotation.x += this.vy * 0.1; this.mesh.rotation.z -= this.vx * 0.1;
+        updateMeshPosition() { 
+            this.mesh.position.set(get3DX(this.x), this.radius, get3DZ(this.y)); 
+            this.mesh.rotation.x += this.vy * 0.1; this.mesh.rotation.z -= this.vx * 0.1; 
         }
     }
 
-    // --- PHYSICS HELPERS ---
-    
-    // Calculates distance from a point (px,py) to a line segment (x1,y1) -> (x2,y2)
     function pointToLineDistance(px, py, x1, y1, x2, y2) {
         let A = px - x1; let B = py - y1; let C = x2 - x1; let D = y2 - y1;
         let dot = A * C + B * D; let len_sq = C * C + D * D; let param = -1;
         if (len_sq !== 0) param = dot / len_sq;
-        let xx, yy;
-        if (param < 0) { xx = x1; yy = y1; } else if (param > 1) { xx = x2; yy = y2; } else { xx = x1 + param * C; yy = y1 + param * D; }
-        let dx = px - xx; let dy = py - yy;
-        return Math.sqrt(dx * dx + dy * dy);
+        let xx, yy; if (param < 0) { xx = x1; yy = y1; } else if (param > 1) { xx = x2; yy = y2; } else { xx = x1 + param * C; yy = y1 + param * D; }
+        let dx = px - xx; let dy = py - yy; return Math.sqrt(dx * dx + dy * dy);
     }
 
     function passBall(entity) {
         if (!ball || ball.possessedBy !== entity) return;
-        ball.possessedBy = null; ball.possessionCooldown = 20; 
-        const passPower = 6.5; // Passes are slightly softer than shots
-        ball.vx = Math.cos(entity.facingAngle) * passPower + entity.vx * 0.5;
-        ball.vy = Math.sin(entity.facingAngle) * passPower + entity.vy * 0.5;
-        audio.playShoot();
+        ball.possessedBy = null; ball.possessionCooldown = 20; const passPower = 6.5; 
+        ball.vx = Math.cos(entity.facingAngle) * passPower + entity.vx * 0.5; ball.vy = Math.sin(entity.facingAngle) * passPower + entity.vy * 0.5; audio.playShoot();
     }
 
     function shootBall(entity) {
         if (!ball || ball.possessedBy !== entity) return;
-
-        // Try to find a teammate in the general direction of facingAngle
-        let bestTeammate = null;
-        let maxDot = 0.707; // Cosine of 45 degrees (total 90-degree target angle cone)
-        const facingX = Math.cos(entity.facingAngle);
-        const facingY = Math.sin(entity.facingAngle);
+        let bestTeammate = null; let maxDot = 0.707; 
+        const facingX = Math.cos(entity.facingAngle); const facingY = Math.sin(entity.facingAngle);
 
         for (let e of entities) {
             if (e !== entity && e.team.id === entity.team.id && !e.isGoalie) {
-                let dx = e.x - entity.x;
-                let dy = e.y - entity.y;
-                let dist = Math.sqrt(dx*dx + dy*dy);
+                let dx = e.x - entity.x; let dy = e.y - entity.y; let dist = Math.sqrt(dx*dx + dy*dy);
                 if (dist > 0 && dist < 250) {
-                    let dot = (dx * facingX + dy * facingY) / dist; // Normalized dot product
-                    if (dot > maxDot) {
-                        maxDot = dot;
-                        bestTeammate = e;
-                    }
+                    let dot = (dx * facingX + dy * facingY) / dist; 
+                    if (dot > maxDot) { maxDot = dot; bestTeammate = e; }
                 }
             }
         }
-
-        ball.possessedBy = null;
-        ball.possessionCooldown = 20;
+        ball.possessedBy = null; ball.possessionCooldown = 20;
 
         if (bestTeammate) {
-            // Lead pass predicting teammate momentum (15 frames prediction)
-            const leadFactor = 15;
-            const targetX = bestTeammate.x + bestTeammate.vx * leadFactor;
-            const targetY = bestTeammate.y + bestTeammate.vy * leadFactor;
-
-            const dx = targetX - entity.x;
-            const dy = targetY - entity.y;
-            const dist = Math.sqrt(dx*dx + dy*dy);
-            
-            const passAngle = Math.atan2(dy, dx);
-            const passPower = Math.min(8.5, Math.max(6.0, dist * 0.04)); 
-            
-            ball.vx = Math.cos(passAngle) * passPower + entity.vx * 0.3;
-            ball.vy = Math.sin(passAngle) * passPower + entity.vy * 0.3;
-            audio.playShoot();
+            const targetX = bestTeammate.x + bestTeammate.vx * 15; const targetY = bestTeammate.y + bestTeammate.vy * 15;
+            const dx = targetX - entity.x; const dy = targetY - entity.y; const dist = Math.sqrt(dx*dx + dy*dy);
+            const passAngle = Math.atan2(dy, dx); const passPower = Math.min(8.5, Math.max(6.0, dist * 0.04)); 
+            ball.vx = Math.cos(passAngle) * passPower + entity.vx * 0.3; ball.vy = Math.sin(passAngle) * passPower + entity.vy * 0.3; audio.playShoot();
         } else {
-            // Trigger raw shot if no teammate is ahead/nearby in that direction
-            const shotPower = 8.5; 
-            ball.vx = Math.cos(entity.facingAngle) * shotPower + entity.vx * 0.5;
-            ball.vy = Math.sin(entity.facingAngle) * shotPower + entity.vy * 0.5;
-            audio.playShoot();
+            const shotPower = 8.5; ball.vx = Math.cos(entity.facingAngle) * shotPower + entity.vx * 0.5; ball.vy = Math.sin(entity.facingAngle) * shotPower + entity.vy * 0.5; audio.playShoot();
         }
     }
 
     function resolveCollision(entity, ball) {
-        // Goalies ALWAYS block the ball, even if it was just shot (ignoring possession cooldown)
+        if (ball.possessedBy && ball.possessedBy !== entity && !entity.isGoalie) return;
+
         if ((!entity.isGoalie && ball.possessionCooldown > 0) || entity.stealCooldown > 0 || ball.possessedBy === entity) return;
         
         if (!entity.isGoalie) { 
             lastTouchedBy = entity.team; 
             ball.possessedBy = entity; 
             audio.playDribble(); 
-        } else { 
-            // Goalie blocks the shot!
-            ball.possessedBy = null; 
-            ball.possessionCooldown = 15; 
-            
-            // Push ball downwards to prevent it from getting stuck inside the goalie
-            ball.y = entity.y + entity.size/2 + ball.radius;
-            
-            // Deflect ball away based on shot power
-            ball.vy = Math.abs(ball.vy) * 0.5 + 4; // Bounce it back down the field
-            ball.vx = (Math.random() - 0.5) * 6 + (ball.vx * -0.5); 
-            audio.playShoot(); 
+            if (isMultiplayer && !isHost && entity.ownerUid === localSessionId) window.pendingNetworkGrab = true;
+        } 
+        else { 
+            ball.possessedBy = null; ball.possessionCooldown = 15; ball.y = entity.y + entity.size/2 + ball.radius;
+            ball.vy = Math.abs(ball.vy) * 0.5 + 4; ball.vx = (Math.random() - 0.5) * 6 + (ball.vx * -0.5); audio.playShoot(); 
         }
     }
-
-
-    // --- MENU / UI LOGIC ---
-    function initMenu() {
-        // Setup Grid
-        const grid = document.getElementById('team-selection');
-        grid.innerHTML = '';
-        TEAMS.forEach(team => {
-            const btn = document.createElement('button');
-            btn.innerHTML = `<div class="lb-color" style="background:${team.color1}; margin:0;"></div> ${team.name}`;
-            btn.style.borderColor = team.color1;
-            btn.onclick = () => selectTeam(team);
-            grid.appendChild(btn);
-        });
-
-        // Set initial random player team
-        if (!playerTeam) {
-            playerTeam = TEAMS[Math.floor(Math.random() * TEAMS.length)];
-            updateTopRightUI();
-        }
-        document.getElementById('top-right-team').classList.remove('hidden');
-
-        if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
-            document.getElementById('joystick-zone').style.display = 'block';
-            document.getElementById('shoot-btn').style.display = 'block';
-            setupJoystick();
-        }
-    }
-
-    function updateTopRightUI() {
-        document.getElementById('tr-name').innerText = playerTeam.name;
-        document.getElementById('tr-color').style.backgroundColor = playerTeam.color1;
-    }
-
-    function openTeamSelect(target) {
-        teamSelectTarget = target;
-        document.getElementById('team-select-modal').classList.remove('hidden');
-    }
-
-    function closeTeamSelect() {
-        document.getElementById('team-select-modal').classList.add('hidden');
-    }
-
-    function selectTeam(team) {
-        if (teamSelectTarget === 'player') {
-            playerTeam = team;
-            updateTopRightUI();
-        } else if (typeof teamSelectTarget === 'number') {
-            customOpponentTeams[teamSelectTarget] = team;
-            updateCustomUI(); // Refresh slots
-        }
-        closeTeamSelect();
-    }
-
-    // --- GAME MODES ---
-    function startMode(modeStr) {
-        let tCount = 4;
-        let pCount = 1;
-        
-        if (modeStr === 'classic') { tCount = 4; pCount = 1; }
-        else if (modeStr === 'duos') { tCount = 4; pCount = 2; }
-        else if (modeStr === 'trios') { tCount = 3; pCount = 3; }
-        else if (modeStr === 'quads') { tCount = 3; pCount = 4; }
-        else if (modeStr === 'ffa') { tCount = 8; pCount = 1; }
-
-        currentPlayersPerTeam = pCount;
-        
-        // Random opponents
-        const opponentsPool = TEAMS.filter(t => t.id !== playerTeam.id).sort(() => 0.5 - Math.random());
-        activeTeams = [playerTeam, ...opponentsPool.slice(0, tCount - 1)];
-        
-        launchTournament();
-    }
-
-    // --- CUSTOM MATCH LOGIC ---
-    function openCustomMenu() {
-        document.getElementById('menu-screen').classList.add('hidden');
-        document.getElementById('top-right-team').classList.add('hidden');
-        document.getElementById('custom-modal').classList.remove('hidden');
-        
-        // Initialize custom opponents if empty
-        const desiredOpponents = parseInt(document.getElementById('slider-teams').value) - 1;
-        if (customOpponentTeams.length !== desiredOpponents) {
-            const pool = TEAMS.filter(t => t.id !== playerTeam.id).sort(() => 0.5 - Math.random());
-            customOpponentTeams = pool.slice(0, desiredOpponents);
-        }
-        updateCustomUI();
-    }
-
-    function closeCustomMenu() {
-        document.getElementById('custom-modal').classList.add('hidden');
-        document.getElementById('menu-screen').classList.remove('hidden');
-        document.getElementById('top-right-team').classList.remove('hidden');
-    }
-
-    function updateCustomUI() {
-        const tCount = parseInt(document.getElementById('slider-teams').value);
-        const pCount = parseInt(document.getElementById('slider-players').value);
-        
-        document.getElementById('val-teams').innerText = tCount;
-        document.getElementById('val-players').innerText = pCount;
-
-        // Adjust opponent array
-        const oppCount = tCount - 1;
-        while(customOpponentTeams.length < oppCount) {
-            const pool = TEAMS.filter(t => t.id !== playerTeam.id && !customOpponentTeams.includes(t));
-            customOpponentTeams.push(pool[Math.floor(Math.random() * pool.length)]);
-        }
-        if(customOpponentTeams.length > oppCount) {
-            customOpponentTeams.length = oppCount;
-        }
-
-        // Render slots
-        const list = document.getElementById('opponents-list');
-        list.innerHTML = '';
-        customOpponentTeams.forEach((team, idx) => {
-            const btn = document.createElement('button');
-            btn.className = 'opp-btn';
-            btn.style.borderColor = team.color1;
-            btn.innerHTML = `<div class="lb-color" style="background:${team.color1}; margin:0;"></div> ${team.id}`;
-            btn.onclick = () => openTeamSelect(idx);
-            list.appendChild(btn);
-        });
-    }
-
-    function startCustomMode() {
-        currentPlayersPerTeam = parseInt(document.getElementById('slider-players').value);
-        activeTeams = [playerTeam, ...customOpponentTeams];
-        closeCustomMenu();
-        launchTournament();
-    }
-
 
     // --- TOURNAMENT LOGIC ---
-    function launchTournament() {
-        document.getElementById('menu-screen').classList.add('hidden');
-        document.getElementById('top-right-team').classList.add('hidden');
-        document.getElementById('game-over-screen').classList.add('hidden');
-        document.getElementById('leaderboard').classList.remove('hidden');
-        
-        safeTeams = [];
-        eliminatedTeams = [];
-        tournamentRound = 1;
-        
-        camera.position.set(0, 480, 450);
-        startRound();
-    }
-
     function startRound() {
         clearEntities();
-        
         const aiPersonalities = ['aggressive', 'camper', 'tactical'];
-
-        // Spawn teams with multiple entities
+        let netId = 0;
+        
+        // Before spawning, figure out which team the local player is on (so markers render correctly)
+        if (isMultiplayer && partyData && partyData.matchConfig) {
+            currentPlayersPerTeam = partyData.matchConfig.pCount;
+            activeTeams = partyData.matchConfig.teams.map(id => TEAMS.find(t=>t.id===id)).filter(Boolean);
+            for (let tid in partyData.matchConfig.assignments) {
+                if (partyData.matchConfig.assignments[tid].includes(localSessionId)) {
+                    playerTeam = TEAMS.find(t => t.id === tid);
+                    break;
+                }
+            }
+        }
+        
         activeTeams.forEach((team, teamIdx) => {
-            const baseX = (V_WIDTH / (activeTeams.length + 1)) * (teamIdx + 1);
-            const baseY = V_HEIGHT - 80;
+            const baseX = (V_WIDTH / (activeTeams.length + 1)) * (teamIdx + 1); const baseY = V_HEIGHT - 80;
             
+            let assignedUids = [];
+            if (isMultiplayer && partyData && partyData.matchConfig) {
+                assignedUids = partyData.matchConfig.assignments[team.id] || [];
+            }
+
             for(let i = 0; i < currentPlayersPerTeam; i++) {
-                const isPlayer = (team.id === playerTeam.id && i === 0);
+                let uid, isAI, playerName = '';
                 
-                // Spread players on the same team slightly
-                const offsetX = (i % 2 === 0 ? 1 : -1) * Math.floor((i+1) / 2) * 15;
+                if (isMultiplayer) {
+                    uid = assignedUids[i] || 'BOT';
+                    isAI = (uid === 'BOT');
+                    if (!isAI) {
+                        const pData = partyData.players.find(p => p.uid === uid);
+                        playerName = pData ? pData.name : 'Unknown';
+                    }
+                } else {
+                    const isPlayer = (team.id === playerTeam.id && i === 0);
+                    isAI = !isPlayer;
+                    uid = isPlayer ? localSessionId : 'AI';
+                    playerName = isPlayer ? username : 'BOT';
+                }
+
+                const offsetX = (i % 2 === 0 ? 1 : -1) * Math.floor((i+1) / 2) * 15; 
                 const offsetY = Math.floor(i / 2) * -15; 
                 
-                entities.push(new Entity(baseX + offsetX, baseY + offsetY, 20, team, !isPlayer, aiPersonalities[i % 3]));
+                let e = new Entity(baseX + offsetX, baseY + offsetY, 20, team, isAI, aiPersonalities[i % 3], uid, playerName);
+                e.networkId = netId++;
+                entities.push(e);
             }
         });
 
-        goalie = new Goalie();
-        entities.push(goalie);
-
-        ball = new Ball(V_WIDTH/2, V_HEIGHT/2);
-        lastTouchedBy = null;
-
+        goalie = new Goalie(); goalie.networkId = netId++; entities.push(goalie); 
+        ball = new Ball(V_WIDTH/2, V_HEIGHT/2); lastTouchedBy = null;
         updateLeaderboard(); 
 
-        let remainingNames = activeTeams.map(t => t.name).join(' vs ');
-        if (activeTeams.length > 3) remainingNames = `${activeTeams.length} TEAMS REMAINING`;
-        
-        // Welcome Message Logic
+        let remainingNames = activeTeams.map(t => t.name).join(' vs '); if (activeTeams.length > 3) remainingNames = `${activeTeams.length} TEAMS REMAINING`;
         if (tournamentRound === 1 && !hasWelcomed) {
-            showAnnouncement("WELCOME TO\nROCKMAN STADIUM", "TOURNAMENT BEGINS", '#FFD700', 3500);
-            hasWelcomed = true; // Prevents it from showing again on new games
-        } else {
-            showAnnouncement(`ROUND ${tournamentRound}`, remainingNames, '#FFD700', 2500);
-        }
+            showAnnouncement("WELCOME TO\nROCKMAN STADIUM", "TOURNAMENT BEGINS", '#FFD700', 3500); hasWelcomed = true; 
+        } else showAnnouncement(`ROUND ${tournamentRound}`, remainingNames, '#FFD700', 2500);
         
-        audio.playWhistle();
-        gameState = 'playing';
+        audio.playWhistle(); gameState = 'playing';
     }
 
     function handleGoal() {
-        let scoringTeam = null;
-        if (lastTouchedBy) {
-            scoringTeam = activeTeams.find(t => t.id === lastTouchedBy.id);
-        }
-        if (!scoringTeam) {
-            scoringTeam = activeTeams[Math.floor(Math.random() * activeTeams.length)];
-        }
+        if(isMultiplayer && !isHost) return; 
+        let scoringTeam = null; if (lastTouchedBy) scoringTeam = activeTeams.find(t => t.id === lastTouchedBy.id);
+        if (!scoringTeam) scoringTeam = activeTeams[Math.floor(Math.random() * activeTeams.length)];
 
-        gameState = 'scored'; 
-        spawnConfetti();
-        audio.playCheer();
-        
-        activeTeams = activeTeams.filter(t => t.id !== scoringTeam.id);
-        safeTeams.push(scoringTeam);
-        
-        updateLeaderboard(); 
+        gameState = 'scored'; spawnConfetti(); audio.playCheer();
+        activeTeams = activeTeams.filter(t => t.id !== scoringTeam.id); safeTeams.push(scoringTeam); updateLeaderboard(); 
 
         let remainingMsg = `${activeTeams.length} TEAM${activeTeams.length > 1 ? 'S' : ''} LEFT TO QUALIFY`;
-        // Sped up the score announcement (was 2500)
         showAnnouncement(`${scoringTeam.name} SCORES!`, remainingMsg, scoringTeam.color1, 1500);
 
         if (activeTeams.length === 1) {
-            const eliminated = activeTeams[0];
-            activeTeams = []; 
-            eliminatedTeams.push(eliminated);
-            
-            // Reduced wait time significantly
+            const eliminated = activeTeams[0]; activeTeams = []; eliminatedTeams.push(eliminated);
             setTimeout(() => {
-                updateLeaderboard(); 
-                showAnnouncement(`${eliminated.name} ELIMINATED!`, "KNOCKED OUT OF THE TOURNAMENT", "#ff3333", 2000);
-                
-                if (safeTeams.length === 1) {
-                    setTimeout(() => triggerGameOver(safeTeams[0]), 2500);
-                } else {
-                    tournamentRound++;
-                    activeTeams = [...safeTeams];
-                    safeTeams = [];
-                    setTimeout(startRound, 2500);
-                }
+                updateLeaderboard(); showAnnouncement(`${eliminated.name} ELIMINATED!`, "KNOCKED OUT OF THE TOURNAMENT", "#ff3333", 2000);
+                if (safeTeams.length === 1) setTimeout(() => triggerGameOver(safeTeams[0]), 2500);
+                else { tournamentRound++; activeTeams = [...safeTeams]; safeTeams = []; setTimeout(() => { startRound(); }, 2500); }
             }, 1500);
-        } else {
-            // Restart the round much faster if it isn't an elimination
-            setTimeout(startRound, 1500);
-        }
+        } else { setTimeout(() => { startRound(); }, 1500); }
     }
 
-    function spawnConfetti() {
-        const colors = [0xff0000, 0x00ff00, 0x0000ff, 0xffff00, 0xff00ff, 0x00ffff, 0xffffff];
-        const goalW = 120;
-        for (let i = 0; i < 200; i++) {
-            const p = new THREE.Mesh(new THREE.PlaneGeometry(2, 4), new THREE.MeshBasicMaterial({ color: colors[Math.floor(Math.random() * colors.length)], side: THREE.DoubleSide }));
-            p.position.set((Math.random() - 0.5) * goalW, 40 + Math.random() * 20, get3DZ(-10) + (Math.random() - 0.5) * 20);
-            
-            // Increased initial burst speeds
-            p.userData = { 
-                vx: (Math.random() - 0.5) * 6, 
-                vy: Math.random() * 10 + 5, 
-                vz: (Math.random() - 0.5) * 6, 
-                rx: (Math.random() - 0.5) * 0.5, 
-                ry: (Math.random() - 0.5) * 0.5, 
-                rz: (Math.random() - 0.5) * 0.5 
-            };
-            scene.add(p); confettiParticles.push(p);
-        }
-    }
-
-    function updateConfetti() {
-        for (let i = confettiParticles.length - 1; i >= 0; i--) {
-            let p = confettiParticles[i]; let data = p.userData;
-            
-            // Increased gravity (was 0.15) and reduced air drag so they fall naturally
-            data.vy -= 0.4; 
-            data.vx *= 0.95; 
-            data.vz *= 0.95;
-            
-            p.position.x += data.vx; p.position.y += data.vy; p.position.z += data.vz;
-            p.rotation.x += data.rx; p.rotation.y += data.ry; p.rotation.z += data.rz;
-            
-            // Removed the floor collision so they naturally fall out of view instead of hanging around
-            if (p.position.y < -100) {
-                // Stop calculating physics once they are way beneath the floor
-                data.vy = 0; data.vx = 0; data.vz = 0;
-            }
-        }
-    }
-
-    function clearEntities() {
-        entities.forEach(e => scene.remove(e.mesh));
-        if (ball) scene.remove(ball.mesh);
-        entities = []; ball = null;
-        confettiParticles.forEach(p => scene.remove(p)); confettiParticles = [];
-    }
-
-    function showAnnouncement(mainText, subText, mainColor = '#ffffff', duration = 2000) {
-        const layer = document.getElementById('announcement-layer');
-        const mainEl = document.getElementById('announcement-main');
-        const subEl = document.getElementById('announcement-sub');
-        mainEl.innerText = mainText; mainEl.style.color = mainColor; subEl.innerText = subText;
-        layer.classList.remove('hidden', 'fade-out'); layer.classList.add('pop-in');
-        
-        if (duration > 0) {
-            setTimeout(() => {
-                layer.classList.remove('pop-in'); layer.classList.add('fade-out');
-                setTimeout(() => layer.classList.add('hidden'), 500);
-            }, duration);
-        }
-    }
-
-    function updateLeaderboard() {
-        const list = document.getElementById('leaderboard-list');
-        list.innerHTML = '';
-        let sortedTeams = [];
-        safeTeams.forEach(t => sortedTeams.push({team: t, status: 'SAFE', class: 'team-safe'}));
-        activeTeams.forEach(t => sortedTeams.push({team: t, status: 'PLAY', class: 'team-playing'}));
-        eliminatedTeams.forEach(t => sortedTeams.push({team: t, status: 'OUT', class: 'team-eliminated'}));
-        
-        sortedTeams.forEach(item => {
-            const li = document.createElement('li'); li.className = `lb-team ${item.class}`;
-            li.innerHTML = `<div class="lb-color" style="background-color: ${item.team.color1};"></div><span>${item.team.id}</span><span class="lb-status">${item.status}</span>`;
-            list.appendChild(li);
-        });
-    }
-
-    function triggerGameOver(winnerTeam) {
-        gameState = 'gameover';
-        const winnerScreen = document.getElementById('game-over-screen');
-        winnerScreen.classList.remove('hidden');
-        document.getElementById('winner-text').innerText = `${winnerTeam.name} WINS!`;
-        document.getElementById('winner-text').style.color = winnerTeam.color1;
-        document.getElementById('scorer-text').innerText = (winnerTeam.id === playerTeam.id) ? "You are the ultimate champion!" : "You were eliminated.";
-    }
-
-    function resetToMenu() {
-        gameState = 'menu';
-        document.getElementById('game-over-screen').classList.add('hidden');
-        document.getElementById('menu-screen').classList.remove('hidden');
-        document.getElementById('leaderboard').classList.add('hidden');
-        document.getElementById('top-right-team').classList.remove('hidden');
-        clearEntities();
-    }
+    function spawnConfetti() { const colors = [0xff0000, 0x00ff00, 0x0000ff, 0xffff00, 0xff00ff, 0x00ffff, 0xffffff]; const goalW = 120; for (let i = 0; i < 200; i++) { const p = new THREE.Mesh(new THREE.PlaneGeometry(2, 4), new THREE.MeshBasicMaterial({ color: colors[Math.floor(Math.random() * colors.length)], side: THREE.DoubleSide })); p.position.set((Math.random() - 0.5) * goalW, 40 + Math.random() * 20, get3DZ(-10) + (Math.random() - 0.5) * 20); p.userData = { vx: (Math.random() - 0.5) * 6, vy: Math.random() * 10 + 5, vz: (Math.random() - 0.5) * 6, rx: (Math.random() - 0.5) * 0.5, ry: (Math.random() - 0.5) * 0.5, rz: (Math.random() - 0.5) * 0.5 }; scene.add(p); confettiParticles.push(p); } }
+    function updateConfetti() { for (let i = confettiParticles.length - 1; i >= 0; i--) { let p = confettiParticles[i]; let data = p.userData; data.vy -= 0.4; data.vx *= 0.95; data.vz *= 0.95; p.position.x += data.vx; p.position.y += data.vy; p.position.z += data.vz; p.rotation.x += data.rx; p.rotation.y += data.ry; p.rotation.z += data.rz; if (p.position.y < -100) { data.vy = 0; data.vx = 0; data.vz = 0; } } }
+    function clearEntities() { entities.forEach(e => scene.remove(e.mesh)); if (ball) scene.remove(ball.mesh); entities = []; ball = null; confettiParticles.forEach(p => scene.remove(p)); confettiParticles = []; }
+    function showAnnouncement(mainText, subText, mainColor = '#ffffff', duration = 2000) { const layer = document.getElementById('announcement-layer'); const mainEl = document.getElementById('announcement-main'); const subEl = document.getElementById('announcement-sub'); mainEl.innerText = mainText; mainEl.style.color = mainColor; subEl.innerText = subText; layer.classList.remove('hidden', 'fade-out'); layer.classList.add('pop-in'); if (duration > 0) { setTimeout(() => { layer.classList.remove('pop-in'); layer.classList.add('fade-out'); setTimeout(() => layer.classList.add('hidden'), 500); }, duration); } }
+    function updateLeaderboard() { const list = document.getElementById('leaderboard-list'); list.innerHTML = ''; let sortedTeams = []; safeTeams.forEach(t => sortedTeams.push({team: t, status: 'SAFE', class: 'team-safe'})); activeTeams.forEach(t => sortedTeams.push({team: t, status: 'PLAY', class: 'team-playing'})); eliminatedTeams.forEach(t => sortedTeams.push({team: t, status: 'OUT', class: 'team-eliminated'})); sortedTeams.forEach(item => { const li = document.createElement('li'); li.className = `lb-team ${item.class}`; li.innerHTML = `<div class="lb-color" style="background-color: ${item.team.color1};"></div><span>${item.team.id}</span><span class="lb-status">${item.status}</span>`; list.appendChild(li); }); }
+    function triggerGameOver(winnerTeam) { gameState = 'gameover'; const winnerScreen = document.getElementById('game-over-screen'); winnerScreen.classList.remove('hidden'); document.getElementById('winner-text').innerText = `${winnerTeam.name} WINS!`; document.getElementById('winner-text').style.color = winnerTeam.color1; document.getElementById('scorer-text').innerText = (winnerTeam.id === playerTeam.id) ? "You are the ultimate champion!" : "You were eliminated."; }
+    window.resetToMenu = () => { gameState = 'menu'; document.getElementById('game-over-screen').classList.add('hidden'); document.getElementById('menu-screen').classList.remove('hidden'); document.getElementById('leaderboard').classList.add('hidden'); document.getElementById('top-right-team').classList.remove('hidden'); clearEntities(); };
 
     // --- MAIN RENDER LOOP ---
     function gameLoop() {
@@ -1587,49 +1503,48 @@
             entities.forEach(e => e.update());
             if (ball) ball.update();
 
-            // Scroll the Advertisement LED Boards
-            if (adTexture) {
-                adTexture.offset.x -= 0.003;
-            }
+            if (adTexture) adTexture.offset.x -= 0.003;
 
-            // Resolve overlapping entities
-            for (let i = 0; i < entities.length; i++) {
-                for (let j = i + 1; j < entities.length; j++) {
-                    let e1 = entities[i]; let e2 = entities[j];
-                    let dx = e2.x - e1.x; let dy = e2.y - e1.y;
-                    let dist = Math.sqrt(dx*dx + dy*dy);
-                    let minDist = (e1.size + e2.size)/2;
-                    
-                    if (dist < minDist && dist > 0) {
-                        let overlap = minDist - dist; let nx = dx/dist; let ny = dy/dist;
-                        e1.x -= nx * overlap * 0.1; e1.y -= ny * overlap * 0.1;
-                        e2.x += nx * overlap * 0.1; e2.y += ny * overlap * 0.1;
+            if (!isMultiplayer || isHost) {
+                for (let i = 0; i < entities.length; i++) {
+                    for (let j = i + 1; j < entities.length; j++) {
+                        let e1 = entities[i]; let e2 = entities[j];
+                        let dx = e2.x - e1.x; let dy = e2.y - e1.y; let dist = Math.sqrt(dx*dx + dy*dy); let minDist = (e1.size + e2.size)/2;
+                        if (dist < minDist && dist > 0) {
+                            let overlap = minDist - dist; let nx = dx/dist; let ny = dy/dist;
+                            e1.x -= nx * overlap * 0.1; e1.y -= ny * overlap * 0.1; e2.x += nx * overlap * 0.1; e2.y += ny * overlap * 0.1;
+                            
+                            if (ball && e1.team !== e2.team) {
+                                let e1Remote = isMultiplayer && e1.ownerUid !== 'AI' && e1.ownerUid !== localSessionId;
+                                let e2Remote = isMultiplayer && e2.ownerUid !== 'AI' && e2.ownerUid !== localSessionId;
+                                let skipHostSteal = false;
+                                if ((e1Remote && e2.ownerUid === 'AI') || (e2Remote && e1.ownerUid === 'AI')) skipHostSteal = true;
 
-                        // Stealing Mechanics (Only from opposing teams)
-                        if (ball && e1.team !== e2.team) {
-                            if (ball.possessedBy === e1 && e2.stealCooldown === 0 && !e2.isGoalie) {
-                                ball.possessedBy = e2; e1.stealCooldown = 60; lastTouchedBy = e2.team; audio.playSteal();
-                            } else if (ball.possessedBy === e2 && e1.stealCooldown === 0 && !e1.isGoalie) {
-                                ball.possessedBy = e1; e2.stealCooldown = 60; lastTouchedBy = e1.team; audio.playSteal();
+                                if (!skipHostSteal) {
+                                    if (ball.possessedBy === e1 && e2.stealCooldown === 0 && !e2.isGoalie) { ball.possessedBy = e2; e1.stealCooldown = 60; lastTouchedBy = e2.team; audio.playSteal(); } 
+                                    else if (ball.possessedBy === e2 && e1.stealCooldown === 0 && !e1.isGoalie) { ball.possessedBy = e1; e2.stealCooldown = 60; lastTouchedBy = e1.team; audio.playSteal(); }
+                                }
                             }
                         }
                     }
                 }
             }
+
+            if (isMultiplayer && isHost && (gameState === 'playing' || gameState === 'scored')) {
+                const now = Date.now();
+                if (now - lastNetworkSync > 50) { lastNetworkSync = now; pushNetworkState(); }
+            }
+            if (isMultiplayer && !isHost && (gameState === 'playing' || gameState === 'scored')) {
+                sendClientInputs();
+            }
         }
 
         if (confettiParticles.length > 0) updateConfetti();
 
-        if (gameState !== 'menu') {
+        if (gameState !== 'menu' && gameState !== 'lobby') {
             let targetCamY = 420; let targetCamZ = 380; let targetLookZ = 20;
-            if (ball) {
-                const t = Math.max(0, Math.min(1, ball.y / V_HEIGHT));
-                targetCamY = 220 + (t * 200); targetCamZ = 180 + (t * 200); targetLookZ = -80 + (t * 100); 
-            }
-            camera.position.y += (targetCamY - camera.position.y) * 0.04;
-            camera.position.z += (targetCamZ - camera.position.z) * 0.04;
-            currentLookZ += (targetLookZ - currentLookZ) * 0.04;
-            camera.lookAt(0, 0, currentLookZ);
+            if (ball) { const t = Math.max(0, Math.min(1, ball.y / V_HEIGHT)); targetCamY = 220 + (t * 200); targetCamZ = 180 + (t * 200); targetLookZ = -80 + (t * 100); }
+            camera.position.y += (targetCamY - camera.position.y) * 0.04; camera.position.z += (targetCamZ - camera.position.z) * 0.04; currentLookZ += (targetLookZ - currentLookZ) * 0.04; camera.lookAt(0, 0, currentLookZ);
         } else {
             camera.position.set(0, 350, 300); camera.lookAt(0, 0, -50); currentLookZ = -50;
         }
@@ -1645,26 +1560,17 @@
     function setupJoystick() {
         const zone = document.getElementById('joystick-zone'); const knob = document.getElementById('joystick-knob');
         let active = false; let center = {x:0, y:0}; const maxDist = 40;
-
         zone.addEventListener('touchstart', (e) => { active = true; const rect = zone.getBoundingClientRect(); center = { x: rect.left + rect.width/2, y: rect.top + rect.height/2 }; updateKnob(e.touches[0]); }, {passive: false});
         zone.addEventListener('touchmove', (e) => { if (!active) return; e.preventDefault(); updateKnob(e.touches[0]); }, {passive: false});
         const resetJoy = () => { active = false; joystickVector = {x: 0, y: 0}; knob.style.transform = `translate(-50%, -50%)`; };
         zone.addEventListener('touchend', resetJoy); zone.addEventListener('touchcancel', resetJoy);
-
         const shootBtn = document.getElementById('shoot-btn');
         shootBtn.addEventListener('touchstart', (e) => { e.preventDefault(); keys[' '] = true; }, {passive: false});
         shootBtn.addEventListener('touchend', (e) => { e.preventDefault(); keys[' '] = false; });
-
-        function updateKnob(touch) {
-            let dx = touch.clientX - center.x; let dy = touch.clientY - center.y;
-            let dist = Math.sqrt(dx*dx + dy*dy);
-            if (dist > maxDist) { dx = (dx/dist) * maxDist; dy = (dy/dist) * maxDist; }
-            knob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
-            if (dist > 5) joystickVector = { x: dx/maxDist, y: dy/maxDist }; else joystickVector = {x: 0, y: 0};
-        }
+        function updateKnob(touch) { let dx = touch.clientX - center.x; let dy = touch.clientY - center.y; let dist = Math.sqrt(dx*dx + dy*dy); if (dist > maxDist) { dx = (dx/dist) * maxDist; dy = (dy/dist) * maxDist; } knob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`; if (dist > 5) joystickVector = { x: dx/maxDist, y: dy/maxDist }; else joystickVector = {x: 0, y: 0}; }
     }
 
-    initMenu();
+    initAuth().then(() => initMenu());
     requestAnimationFrame(gameLoop);
 
 </script>
