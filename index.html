@@ -179,12 +179,12 @@
             display: flex; align-items: center; justify-content: center; width: 100%; transition: background 0.2s;
         }
         .add-bot-btn:hover { background: rgba(40, 167, 69, 0.6); color: #fff; }
-        .team-name-input {
-            background: transparent; border: none; border-bottom: 1px solid rgba(255,255,255,0.3); 
-            font-weight: bold; font-size: 12px; width: 100%; margin-bottom: 5px; font-family: 'Poppins', sans-serif;
-            transition: 0.2s;
+        .team-select-dropdown {
+            background: rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.3); 
+            font-weight: bold; font-size: 12px; width: 100%; margin-bottom: 5px; 
+            font-family: 'Poppins', sans-serif; padding: 4px; border-radius: 4px; outline: none;
         }
-        .team-name-input:focus { outline: none; border-color: #FFD700; background: rgba(255,255,255,0.1); }
+        .team-select-dropdown option { background: #0a0f1a; color: #fff; }
 
         /* --- CONTAINER QUERIES FOR COMPACT HEIGHTS (LANDSCAPE FIXES) --- */
         @container (max-height: 500px) {
@@ -665,7 +665,6 @@
         const tCount = parseInt(document.getElementById('mp-slider-teams').value);
         let currentTeams = (partyData && partyData.matchConfig) ? [...partyData.matchConfig.teams] : [playerTeam.id];
         let currentAssign = (partyData && partyData.matchConfig) ? partyData.matchConfig.assignments : {};
-        let currentCustomNames = (partyData && partyData.matchConfig && partyData.matchConfig.customNames) ? partyData.matchConfig.customNames : {};
 
         while(currentTeams.length < tCount) {
             const pool = TEAMS.filter(t => !currentTeams.includes(t.id));
@@ -680,7 +679,7 @@
             newAssign[tid] = currentAssign[tid] || [];
         });
 
-        return { tCount, teams: currentTeams, assignments: newAssign, customNames: currentCustomNames };
+        return { tCount, teams: currentTeams, assignments: newAssign };
     }
 
     window.handleMpSliderChange = async () => {
@@ -689,11 +688,22 @@
         await update(ref(db, 'parties/' + partyCode), { matchConfig: newConfig });
     };
 
-    window.setTeamName = async (tid, newName) => {
+    window.changeTeam = async (oldTid, newTid) => {
         if (!isHost || !partyData || !partyData.matchConfig) return;
         let config = partyData.matchConfig;
-        if (!config.customNames) config.customNames = {};
-        config.customNames[tid] = newName.substring(0, 15);
+        
+        // Prevent duplicate teams from being selected
+        if (config.teams.includes(newTid)) {
+            updateLobbyUI(); 
+            return;
+        }
+
+        const idx = config.teams.indexOf(oldTid);
+        if (idx !== -1) config.teams[idx] = newTid;
+        
+        config.assignments[newTid] = config.assignments[oldTid] || [];
+        delete config.assignments[oldTid];
+
         await update(ref(db, 'parties/' + partyCode), { matchConfig: config });
     };
 
@@ -734,15 +744,7 @@
                     let idx = config.assignments[data.fromTeam].indexOf(data.uid);
                     if (idx > -1) config.assignments[data.fromTeam].splice(idx, 1);
                 }
-                
-                let currentHumans = (config.assignments[toTeam] || []).filter(u => u !== 'BOT').length;
                 config.assignments[toTeam].push(data.uid);
-                
-                if (currentHumans === 0 && data.uid !== 'BOT') {
-                    if (!config.customNames) config.customNames = {};
-                    let p = partyData.players.find(x => x.uid === data.uid);
-                    if (p) config.customNames[toTeam] = p.name.substring(0, 15);
-                }
             }
             await update(ref(db, 'parties/' + partyCode), { matchConfig: config });
         } catch(err){}
@@ -774,13 +776,7 @@
             for (let t of config.teams) {
                 if (!config.assignments[t]) config.assignments[t] = [];
                 if (config.assignments[t].length < 4) {
-                    let currentHumans = config.assignments[t].filter(u => u !== 'BOT').length;
                     config.assignments[t].push(uid);
-                    if (currentHumans === 0 && uid !== 'BOT') {
-                        if (!config.customNames) config.customNames = {};
-                        let p = partyData.players.find(x => x.uid === uid);
-                        if (p) config.customNames[t] = p.name.substring(0, 15);
-                    }
                     break;
                 }
             }
@@ -794,13 +790,12 @@
         isHost = true; isMultiplayer = true;
         
         let initAssign = {}; initAssign[playerTeam.id] = [localSessionId];
-        let initCustomNames = {}; initCustomNames[playerTeam.id] = username.substring(0, 15);
         
         try {
             await set(ref(db, 'parties/' + partyCode), {
                 host: localSessionId, state: 'lobby',
                 players: [{ uid: localSessionId, name: username }],
-                matchConfig: { tCount: 2, teams: [playerTeam.id, 'MEX'], assignments: initAssign, customNames: initCustomNames }
+                matchConfig: { tCount: 2, teams: [playerTeam.id, 'MEX'], assignments: initAssign }
             });
             listenToParty(partyCode);
             showLobbyUI();
@@ -920,10 +915,14 @@
 
                 let addBotBtn = isHost && slots.length < 4 ? `<button class="add-bot-btn" onclick="window.addBot('${tid}')">+ ADD BOT</button>` : '';
 
-                let cName = partyData.matchConfig.customNames && partyData.matchConfig.customNames[tid] ? partyData.matchConfig.customNames[tid] : team.name;
+                let optionsHTML = '';
+                TEAMS.forEach(t => {
+                    optionsHTML += `<option value="${t.id}" ${t.id === tid ? 'selected' : ''}>${t.name}</option>`;
+                });
+
                 let headerHTML = isHost ? 
-                    `<input type="text" class="team-name-input" style="color:${team.color1};" value="${cName}" onchange="window.setTeamName('${tid}', this.value)" />` :
-                    `<div style="font-size: 12px; font-weight: bold; margin-bottom: 5px; color:${team.color1};">${cName}</div>`;
+                    `<select class="team-select-dropdown" style="color:${team.color1};" onchange="window.changeTeam('${tid}', this.value)">${optionsHTML}</select>` :
+                    `<div style="font-size: 12px; font-weight: bold; margin-bottom: 5px; color:${team.color1};">${team.name}</div>`;
 
                 grid.innerHTML += `<div class="team-dropzone" style="border-left: 4px solid ${team.color1};" ondragover="event.preventDefault()" ondrop="window.dropToTeam(event, '${tid}')">
                     ${headerHTML}
@@ -956,16 +955,6 @@
         try { await update(ref(db, 'parties/' + partyCode), { state: 'playing' }); } catch(e){}
     };
 
-    const getTeamWithCustomName = (id) => {
-        let baseTeam = TEAMS.find(t => t.id === id);
-        if (!baseTeam) return null;
-        let t = {...baseTeam}; 
-        if (isMultiplayer && partyData && partyData.matchConfig && partyData.matchConfig.customNames && partyData.matchConfig.customNames[id]) {
-            t.name = partyData.matchConfig.customNames[id];
-        }
-        return t;
-    };
-
     function setupMultiplayerMatch() {
         document.getElementById('lobby-menu').classList.add('hidden');
         document.getElementById('leaderboard').classList.remove('hidden');
@@ -974,12 +963,12 @@
         safeTeams = []; eliminatedTeams = []; tournamentRound = 1; activeTeams = [];
         
         if (partyData && partyData.matchConfig) {
-            activeTeams = partyData.matchConfig.teams.map(id => getTeamWithCustomName(id))
+            activeTeams = partyData.matchConfig.teams.map(id => TEAMS.find(t=>t.id===id))
                 .filter(t => partyData.matchConfig.assignments[t.id] && partyData.matchConfig.assignments[t.id].length > 0);
             
             for (let tid in partyData.matchConfig.assignments) {
                 if (partyData.matchConfig.assignments[tid].includes(localSessionId)) {
-                    playerTeam = activeTeams.find(t => t.id === tid);
+                    playerTeam = TEAMS.find(t => t.id === tid);
                     break;
                 }
             }
@@ -1016,11 +1005,11 @@
     function syncNetworkState(state) {
         if(!state) return;
         
-        if (state.at) activeTeams = state.at.map(id => getTeamWithCustomName(id)).filter(Boolean);
-        if (state.st) safeTeams = state.st.map(id => getTeamWithCustomName(id)).filter(Boolean);
-        if (state.et) eliminatedTeams = state.et.map(id => getTeamWithCustomName(id)).filter(Boolean);
+        if (state.at) activeTeams = state.at.map(id => TEAMS.find(t => t.id === id)).filter(Boolean);
+        if (state.st) safeTeams = state.st.map(id => TEAMS.find(t => t.id === id)).filter(Boolean);
+        if (state.et) eliminatedTeams = state.et.map(id => TEAMS.find(t => t.id === id)).filter(Boolean);
         if (state.rnd) tournamentRound = state.rnd;
-        if (state.ltb) lastTouchedBy = getTeamWithCustomName(state.ltb);
+        if (state.ltb) lastTouchedBy = TEAMS.find(t => t.id === state.ltb);
 
         if (state.ann && state.ann.id !== lastAnnId) {
             lastAnnId = state.ann.id;
