@@ -24,8 +24,8 @@
         
         canvas { display: block; width: 100%; height: 100%; }
 
-        /* --- FORCE LANDSCAPE ON PORTRAIT MOBILE --- */
-        @media screen and (orientation: portrait) and (max-width: 768px) {
+        /* --- FORCE LANDSCAPE ON PORTRAIT MOBILE & TABLETS --- */
+        @media screen and (orientation: portrait) and (max-width: 1024px) {
             body, html {
                 width: 100vw; width: 100dvw;
                 height: 100vh; height: 100dvh;
@@ -91,7 +91,7 @@
         .mode-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; width: 90%; max-width: 600px; }
 
         #top-right-team {
-            position: absolute; top: 20px; right: 20px;
+            position: absolute; top: 20px; left: 20px;
             background: rgba(10, 15, 26, 0.85); backdrop-filter: blur(8px);
             border: 2px solid rgba(255, 255, 255, 0.2); border-radius: 12px;
             padding: 10px 15px; display: flex; align-items: center; gap: 10px;
@@ -103,6 +103,16 @@
         .tr-label { font-size: 10px; color: #a0aabf; font-weight: 700; text-transform: uppercase; }
         .tr-name { font-size: 14px; font-weight: 900; color: #fff; }
         .tr-edit { font-size: 12px; color: #FFD700; margin-left: 5px; }
+
+        #settings-btn {
+            position: absolute; top: 20px; right: 20px; z-index: 40;
+            background: rgba(10, 15, 26, 0.85); backdrop-filter: blur(8px);
+            border: 2px solid rgba(255, 255, 255, 0.2); border-radius: 12px;
+            padding: 8px; font-size: 24px; cursor: pointer; transition: 0.2s;
+            display: flex; align-items: center; justify-content: center;
+            width: 44px; height: 44px; color: #fff;
+        }
+        #settings-btn:hover { border-color: #FFD700; transform: scale(1.05); }
 
         .modal-box {
             background: rgba(15, 20, 35, 0.95); border: 1px solid rgba(255, 255, 255, 0.1);
@@ -123,7 +133,7 @@
 
         #ui-layer { position: absolute; top: 20px; left: 0; width: 100%; text-align: center; pointer-events: none; z-index: 5; font-size: 18px; font-weight: 700; text-shadow: 0 2px 4px rgba(0,0,0,0.8); white-space: pre-line; color: #ffffff; }
 
-        #leaderboard { position: absolute; top: 20px; left: 20px; background: rgba(10, 15, 26, 0.75); backdrop-filter: blur(8px); padding: 15px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.1); z-index: 10; min-width: 160px; pointer-events: none; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
+        #leaderboard { position: absolute; top: 80px; left: 20px; background: rgba(10, 15, 26, 0.75); backdrop-filter: blur(8px); padding: 15px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.1); z-index: 10; min-width: 160px; pointer-events: none; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
         #leaderboard h3 { margin: 0 0 10px 0; font-size: 14px; color: #FFD700; text-transform: uppercase; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 8px; font-weight: 900; }
         #leaderboard-list { list-style: none; padding: 0; margin: 0; }
         .lb-team { display: flex; align-items: center; margin-bottom: 8px; font-size: 13px; font-weight: 700; text-transform: uppercase; transition: all 0.3s; }
@@ -133,9 +143,6 @@
         .team-playing { color: #ffffff; }
         .team-eliminated { color: #666666; text-decoration: line-through; }
         .team-eliminated .lb-color { filter: grayscale(100%); opacity: 0.4; }
-
-        #audio-btn { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); background: rgba(10, 15, 26, 0.85); backdrop-filter: blur(8px); border: 2px solid rgba(255, 255, 255, 0.2); color: #fff; padding: 8px 15px; border-radius: 12px; cursor: pointer; z-index: 50; font-size: 18px; transition: all 0.2s; box-shadow: 0 4px 10px rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; }
-        #audio-btn:hover { background: rgba(20, 30, 50, 0.95); border-color: #FFD700; transform: translateX(-50%) scale(1.05); }
 
         #announcement-layer { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; pointer-events: none; z-index: 15; text-shadow: 0 4px 15px rgba(0,0,0,0.8); }
         .pop-in { animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
@@ -188,10 +195,10 @@
             
             /* In-game */
             #announcement-main { font-size: 40px; }
-            #top-right-team { top: 5px; right: 5px; padding: 6px 10px; }
+            #top-right-team { top: 5px; left: 5px; padding: 6px 10px; }
             .tr-name { font-size: 12px; }
-            #audio-btn { top: 5px; padding: 4px 10px; }
-            #leaderboard { top: 5px; left: 5px; padding: 8px; min-width: 120px; }
+            #settings-btn { top: 5px; right: 5px; padding: 4px; width: 36px; height: 36px; font-size: 18px; }
+            #leaderboard { top: 50px; left: 5px; padding: 8px; min-width: 120px; }
             #leaderboard h3 { font-size: 11px; margin-bottom: 4px; padding-bottom: 4px; }
             .lb-team { font-size: 10px; margin-bottom: 4px; }
             .lb-color { width: 10px; height: 10px; }
@@ -203,12 +210,7 @@
 <div id="game-container">
     <div id="ui-layer"><div id="status-text"></div></div>
 
-    <button id="audio-btn" onclick="window.audioToggle(event)">
-        <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
-            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
-            <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
-        </svg>
-    </button>
+    <button id="settings-btn" onclick="window.openSettings()">⚙️</button>
 
     <div id="leaderboard" class="hidden">
         <h3>STANDINGS</h3>
@@ -246,6 +248,23 @@
             <button onclick="window.startMode('ffa')">FREE FOR ALL (8 Teams of 1)</button>
             <button onclick="window.openCustomMenu()" style="border-color: #FFD700; color: #FFD700;">⚙ CUSTOM MATCH</button>
             <button class="btn-online" onclick="window.openMultiplayerMenu()">🌐 ONLINE MULTIPLAYER</button>
+        </div>
+    </div>
+
+    <!-- Settings Menu -->
+    <div id="settings-modal" class="overlay hidden" style="z-index: 60;">
+        <div class="modal-box">
+            <h2>SETTINGS</h2>
+            <div class="setting-row">
+                <span>Music Volume: <span class="val" id="val-music">50%</span></span>
+                <input type="range" id="slider-music" min="0" max="100" value="50" oninput="window.updateAudioSettings()">
+            </div>
+            <div class="setting-row">
+                <span>SFX Volume: <span class="val" id="val-sfx">50%</span></span>
+                <input type="range" id="slider-sfx" min="0" max="100" value="50" oninput="window.updateAudioSettings()">
+            </div>
+            <button class="btn-play" onclick="window.closeSettings()">RESUME</button>
+            <button class="btn-cancel" onclick="window.leaveGameFromSettings()">LEAVE GAME / MENU</button>
         </div>
     </div>
 
@@ -288,7 +307,6 @@
                 <div style="margin-top: auto;">
                     <button id="btn-start-mp" class="btn-play hidden" onclick="window.startMpMatch()">START MATCH</button>
                     <p id="lbl-waiting-host" class="subtitle hidden" style="margin:15px auto 0; text-align:center;">Waiting for host to setup match...</p>
-                    <button class="btn-cancel" onclick="window.leaveParty()" style="margin-top:10px; width: 100%;">LEAVE LOBBY</button>
                 </div>
             </div>
             
@@ -381,50 +399,58 @@
         { id: 'UZB', name: 'Uzbekistan', color1: '#0099B5', color2: '#1EB53A' }, { id: 'NZL', name: 'New Zealand', color1: '#FFFFFF', color2: '#000000' }
     ];
 
-    // --- SVG ICONS ---
-    const svgVolumeOn = `<svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>`;
-    const svgVolumeOff = `<svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg>`;
-
-    // --- AUDIO SYSTEM (Web Audio API) ---
+    // --- AUDIO SYSTEM & SETTINGS ---
     const audio = {
         ctx: null, muted: false, musicInterval: null, lastDribble: 0,
+        musicVol: 0.5, sfxVol: 0.5,
         init: function() {
             if (this.ctx) return;
             this.ctx = new (window.AudioContext || window.webkitAudioContext)();
             this.startMusic();
         },
-        toggle: function(e) {
-            if (e) e.stopPropagation();
-            this.init(); this.muted = !this.muted;
-            document.getElementById('audio-btn').innerHTML = this.muted ? svgVolumeOff : svgVolumeOn;
-        },
-        playTone: function(freq, type, duration, vol=0.1, slideFreq=null) {
+        playTone: function(freq, type, duration, vol=0.1, slideFreq=null, isMusic=false) {
             if (!this.ctx || this.muted) return;
+            let finalVol = vol * (isMusic ? this.musicVol : this.sfxVol);
+            if (finalVol <= 0.001) return;
             const osc = this.ctx.createOscillator(); const gain = this.ctx.createGain();
             osc.type = type; osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
             if (slideFreq) osc.frequency.exponentialRampToValueAtTime(slideFreq, this.ctx.currentTime + duration);
-            gain.gain.setValueAtTime(vol, this.ctx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + duration);
+            gain.gain.setValueAtTime(finalVol, this.ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
             osc.connect(gain); gain.connect(this.ctx.destination);
             osc.start(); osc.stop(this.ctx.currentTime + duration);
         },
-        playDribble: function() { const now = Date.now(); if (now - this.lastDribble < 100) return; this.lastDribble = now; this.playTone(150, 'triangle', 0.1, 0.1, 50); },
-        playShoot: function() { this.playTone(600, 'square', 0.3, 0.15, 100); },
-        playSteal: function() { this.playTone(100, 'sawtooth', 0.2, 0.2, 40); },
-        playWhistle: function() { this.playTone(1200, 'square', 0.15, 0.1); setTimeout(() => this.playTone(1400, 'square', 0.3, 0.15), 200); },
-        playCheer: function() { setTimeout(() => this.playTone(523.25, 'square', 0.2, 0.1), 0); setTimeout(() => this.playTone(659.25, 'square', 0.2, 0.1), 150); setTimeout(() => this.playTone(783.99, 'square', 0.2, 0.1), 300); setTimeout(() => this.playTone(1046.50, 'square', 0.4, 0.15), 450); },
+        playDribble: function() { const now = Date.now(); if (now - this.lastDribble < 100) return; this.lastDribble = now; this.playTone(150, 'triangle', 0.1, 0.1, 50, false); },
+        playShoot: function() { this.playTone(600, 'square', 0.3, 0.15, 100, false); },
+        playSteal: function() { this.playTone(100, 'sawtooth', 0.2, 0.2, 40, false); },
+        playWhistle: function() { this.playTone(1200, 'square', 0.15, 0.1, null, false); setTimeout(() => this.playTone(1400, 'square', 0.3, 0.15, null, false), 200); },
+        playCheer: function() { setTimeout(() => this.playTone(523.25, 'square', 0.2, 0.1, null, false), 0); setTimeout(() => this.playTone(659.25, 'square', 0.2, 0.1, null, false), 150); setTimeout(() => this.playTone(783.99, 'square', 0.2, 0.1, null, false), 300); setTimeout(() => this.playTone(1046.50, 'square', 0.4, 0.15, null, false), 450); },
         startMusic: function() {
             const notes = [196, 0, 196, 261, 329, 0, 329, 261, 293, 0, 293, 349, 392, 0, 392, 349]; let idx = 0;
             this.musicInterval = setInterval(() => {
                 if(this.muted || gameState !== 'playing') return;
-                const freq = notes[idx]; if(freq > 0) this.playTone(freq/2, 'square', 0.15, 0.04); 
+                const freq = notes[idx]; if(freq > 0) this.playTone(freq/2, 'square', 0.15, 0.04, null, true); 
                 idx = (idx + 1) % notes.length;
             }, 180);
         }
     };
-    window.audioToggle = (e) => audio.toggle(e);
+    
     document.body.addEventListener('click', () => audio.init(), { once: true });
     document.body.addEventListener('touchstart', () => audio.init(), { once: true });
+
+    window.openSettings = () => { document.getElementById('settings-modal').classList.remove('hidden'); };
+    window.closeSettings = () => { document.getElementById('settings-modal').classList.add('hidden'); };
+    window.updateAudioSettings = () => {
+        audio.musicVol = document.getElementById('slider-music').value / 100;
+        audio.sfxVol = document.getElementById('slider-sfx').value / 100;
+        document.getElementById('val-music').innerText = Math.round(audio.musicVol * 100) + '%';
+        document.getElementById('val-sfx').innerText = Math.round(audio.sfxVol * 100) + '%';
+    };
+    window.leaveGameFromSettings = () => {
+        window.closeSettings();
+        if (isMultiplayer) window.leaveParty();
+        else window.resetToMenu();
+    };
 
     // --- THREE.JS SETUP ---
     const container = document.getElementById('game-container');
@@ -452,7 +478,6 @@
     function get3DZ(logicalY) { return logicalY - (V_HEIGHT / 2); }
     let adTexture = null; 
 
-    // Handle Resize (Both normal and after orientation change triggers CSS)
     window.addEventListener('resize', () => {
         camera.aspect = container.clientWidth / container.clientHeight; 
         camera.updateProjectionMatrix();
@@ -537,7 +562,6 @@
     buildField();
 
     // --- FIREBASE AND MULTIPLAYER LOGIC ---
-    // PASTE YOUR FIREBASE CONFIG HERE:
     const firebaseConfig = {
         apiKey: "AIzaSyAyUL3kByBYNZb9hCWfsPTois34ZA4-VqM",
         authDomain: "worldcupbackend.firebaseapp.com",
@@ -574,11 +598,7 @@
     let lastAnnId = 0;
 
     async function initAuth() {
-        try {
-            await signInAnonymously(auth);
-        } catch (error) {
-            console.error("Error signing in anonymously:", error);
-        }
+        try { await signInAnonymously(auth); } catch (error) { console.error(error); }
     }
 
     onAuthStateChanged(auth, async (user) => {
@@ -595,7 +615,7 @@
                     document.getElementById('username-input').value = username;
                     await set(docRef, { username: username });
                 }
-            } catch(e) { console.error(e); }
+            } catch(e) {}
         }
     });
 
@@ -646,7 +666,6 @@
         await update(ref(db, 'parties/' + partyCode), { matchConfig: newConfig });
     };
 
-    // --- DRAG AND DROP & CLICK ASSIGNMENT LOGIC ---
     window.dragStart = (e, uid, fromTeam) => {
         if (!isHost) return;
         e.dataTransfer.setData('text/plain', JSON.stringify({uid, fromTeam}));
@@ -763,7 +782,7 @@
                 listenToParty(partyCode);
                 showLobbyUI();
             } else { showAnnouncement("ERROR", "Party not found", "#ff3333", 2000); }
-        } catch(e) { console.error(e); }
+        } catch(e) {}
     };
 
     function listenToParty(code) {
@@ -771,6 +790,14 @@
         partyUnsub = onValue(ref(db, 'parties/' + code), (snapshot) => {
             if (snapshot.exists()) {
                 partyData = snapshot.val();
+                
+                // HOST MIGRATION: If host leaves, another connected player claims host instantly!
+                if (partyData.host === localSessionId && !isHost) {
+                    isHost = true;
+                    listenToClientInputs();
+                    showAnnouncement("HOST MIGRATION", "You are the new Host", "#FFD700", 2500);
+                }
+
                 updateLobbyUI();
 
                 if (partyData.state === 'playing' && gameState === 'lobby') {
@@ -779,9 +806,9 @@
                     syncNetworkState(partyData.gameState);
                 }
             } else {
-                window.leaveParty();
+                window.leaveParty(); // Party was deleted
             }
-        }, (err) => console.error(err));
+        });
     }
 
     function showLobbyUI() {
@@ -857,7 +884,17 @@
         }
     }
 
-    window.leaveParty = () => {
+    window.leaveParty = async () => {
+        if (partyCode && partyData && isMultiplayer) {
+            let newPlayers = partyData.players.filter(p => p.uid !== localSessionId);
+            let updates = { players: newPlayers };
+            // If the host leaves, promote the next player!
+            if (isHost && newPlayers.length > 0) {
+                updates.host = newPlayers[0].uid;
+            }
+            try { await update(ref(db, 'parties/' + partyCode), updates); } catch(e){}
+        }
+        
         if (partyUnsub) partyUnsub();
         if (inputsUnsub) inputsUnsub();
         isMultiplayer = false; isHost = false; partyCode = null;
@@ -867,9 +904,7 @@
 
     window.startMpMatch = async () => {
         if(!isHost) return;
-        try {
-            await update(ref(db, 'parties/' + partyCode), { state: 'playing' });
-        } catch(e) { console.error(e); }
+        try { await update(ref(db, 'parties/' + partyCode), { state: 'playing' }); } catch(e){}
     };
 
     function setupMultiplayerMatch() {
@@ -878,8 +913,21 @@
         
         clearEntities();
         safeTeams = []; eliminatedTeams = []; tournamentRound = 1; activeTeams = [];
+        
+        // Initialize player teams correctly from Match Config ONCE at the start of the match
+        if (partyData && partyData.matchConfig) {
+            activeTeams = partyData.matchConfig.teams.map(id => TEAMS.find(t=>t.id===id))
+                .filter(t => partyData.matchConfig.assignments[t.id] && partyData.matchConfig.assignments[t.id].length > 0);
+            
+            for (let tid in partyData.matchConfig.assignments) {
+                if (partyData.matchConfig.assignments[tid].includes(localSessionId)) {
+                    playerTeam = TEAMS.find(t => t.id === tid);
+                    break;
+                }
+            }
+        }
+        
         camera.position.set(0, 480, 450);
-
         hasWelcomed = false; 
         startRound(); 
 
@@ -1012,7 +1060,7 @@
             } else {
                 clientInputs = {};
             }
-        }, (err) => console.error(err));
+        });
     }
 
     // --- GAME STATE VARIABLES ---
@@ -1641,19 +1689,6 @@
         const aiPersonalities = ['aggressive', 'camper', 'tactical'];
         let netId = 0;
         
-        if (isMultiplayer && partyData && partyData.matchConfig) {
-            // Find active teams that actually have members assigned
-            activeTeams = partyData.matchConfig.teams.map(id => TEAMS.find(t=>t.id===id))
-                .filter(t => partyData.matchConfig.assignments[t.id] && partyData.matchConfig.assignments[t.id].length > 0);
-            
-            for (let tid in partyData.matchConfig.assignments) {
-                if (partyData.matchConfig.assignments[tid].includes(localSessionId)) {
-                    playerTeam = TEAMS.find(t => t.id === tid);
-                    break;
-                }
-            }
-        }
-        
         activeTeams.forEach((team, teamIdx) => {
             const baseX = (V_WIDTH / (activeTeams.length + 1)) * (teamIdx + 1); const baseY = V_HEIGHT - 80;
             
@@ -1662,7 +1697,7 @@
 
             if (isMultiplayer && partyData && partyData.matchConfig) {
                 assignedUids = partyData.matchConfig.assignments[team.id] || [];
-                pCount = assignedUids.length; // Use variable player count
+                pCount = assignedUids.length; 
             }
 
             for(let i = 0; i < pCount; i++) {
@@ -1763,7 +1798,7 @@
                         let dx = e2.x - e1.x; let dy = e2.y - e1.y; let dist = Math.sqrt(dx*dx + dy*dy); let minDist = (e1.size + e2.size)/2;
                         if (dist < minDist && dist > 0) {
                             let overlap = minDist - dist; let nx = dx/dist; let ny = dy/dist;
-                            e1.x -= nx * overlap * 0.1; e1.y -= nx * overlap * 0.1; e2.x += nx * overlap * 0.1; e2.y += ny * overlap * 0.1;
+                            e1.x -= nx * overlap * 0.1; e1.y -= ny * overlap * 0.1; e2.x += nx * overlap * 0.1; e2.y += ny * overlap * 0.1;
                             
                             if (ball && e1.team !== e2.team) {
                                 let e1Remote = isMultiplayer && e1.ownerUid !== 'AI' && e1.ownerUid !== localSessionId;
@@ -1823,7 +1858,7 @@
     let leftBasePos = {x:0, y:0}; let rightBasePos = {x:0, y:0};
 
     function getMappedTouch(t) {
-        if (window.innerWidth < window.innerHeight && window.innerWidth <= 768) {
+        if (window.innerWidth < window.innerHeight && window.innerWidth <= 1024) {
             return {
                 identifier: t.identifier,
                 clientX: t.clientY,
