@@ -614,7 +614,6 @@
     window.pendingNetworkShoot = false; 
     window.pendingNetworkFire = null;
     window.pendingNetworkSteal = null;  
-    window.pendingNetworkLost = null;   
     window.pendingNetworkGrab = false;  
     let currentAnnouncement = null; 
     let lastAnnId = 0;
@@ -1005,11 +1004,11 @@
     function syncNetworkState(state) {
         if(!state) return;
         
-        if (state.at) activeTeams = state.at.map(id => TEAMS.find(t => t.id === id)).filter(Boolean);
-        if (state.st) safeTeams = state.st.map(id => TEAMS.find(t => t.id === id)).filter(Boolean);
-        if (state.et) eliminatedTeams = state.et.map(id => TEAMS.find(t => t.id === id)).filter(Boolean);
+        if (state.at) activeTeams = state.at.map(id => getTeamWithCustomName(id)).filter(Boolean);
+        if (state.st) safeTeams = state.st.map(id => getTeamWithCustomName(id)).filter(Boolean);
+        if (state.et) eliminatedTeams = state.et.map(id => getTeamWithCustomName(id)).filter(Boolean);
         if (state.rnd) tournamentRound = state.rnd;
-        if (state.ltb) lastTouchedBy = TEAMS.find(t => t.id === state.ltb);
+        if (state.ltb) lastTouchedBy = getTeamWithCustomName(state.ltb);
 
         if (state.ann && state.ann.id !== lastAnnId) {
             lastAnnId = state.ann.id;
@@ -1026,21 +1025,29 @@
         }
 
         if (state.bp !== undefined && ball) {
-            if (state.bp === null) {
-                if (ball.clientAuthTimer > 0) {
-                } else if (ball.possessedBy && ball.possessedBy.ownerUid === localSessionId) {
-                    const bx = state.ball.x - ball.possessedBy.x; const by = state.ball.y - ball.possessedBy.y;
-                    if (bx*bx + by*by > 900) ball.possessedBy = null; 
-                } else if (!ball.possessedBy || ball.possessedBy.ownerUid !== localSessionId || ball.possessionCooldown > 0) {
-                    ball.possessedBy = null;
-                }
+            let previousPossessor = ball.possessedBy;
+            let newPossessor = state.bp === null ? null : entities.find(e => e.networkId === state.bp);
+
+            // Client-side prediction protection
+            if (ball.clientAuthTimer > 0 && ball.possessedBy && ball.possessedBy.ownerUid === localSessionId) {
+                // Ignore server possession briefly if we just grabbed/stole it locally
             } else {
-                const possessor = entities.find(e => e.networkId === state.bp);
-                if (possessor) {
-                    if (ball.clientAuthTimer > 0 && possessor.ownerUid !== localSessionId && ball.possessedBy && ball.possessedBy.ownerUid === localSessionId) {
-                    } else {
-                        if (possessor.ownerUid !== localSessionId) ball.possessedBy = possessor;
-                        else if (!ball.possessedBy && ball.possessionCooldown === 0) ball.possessedBy = possessor;
+                if (newPossessor !== ball.possessedBy) {
+                    ball.possessedBy = newPossessor;
+
+                    if (newPossessor === null && previousPossessor) {
+                        // The ball was just shot or passed!
+                        ball.possessionCooldown = 20;
+                        if (previousPossessor.ownerUid !== localSessionId) audio.playShoot();
+                        
+                        // Snap exact initial shot parameters
+                        if (state.ball) {
+                            ball.x = state.ball.x; ball.y = state.ball.y;
+                            if (state.ball.vx !== undefined) ball.vx = state.ball.vx;
+                            if (state.ball.vy !== undefined) ball.vy = state.ball.vy;
+                        }
+                    } else if (newPossessor && newPossessor.ownerUid !== localSessionId) {
+                        audio.playDribble();
                     }
                 }
             }
@@ -1049,7 +1056,10 @@
         if(state.ball && ball) { 
             ball.targetX = state.ball.x; ball.targetY = state.ball.y; 
             if (ball.clientAuthTimer <= 0 && state.ball.vx !== undefined && state.ball.vy !== undefined) {
-                ball.vx = state.ball.vx; ball.vy = state.ball.vy;
+                // If the ball is moving fast on the server, trust its velocity
+                if (Math.abs(state.ball.vx) > 1 || Math.abs(state.ball.vy) > 1) {
+                    ball.vx = state.ball.vx; ball.vy = state.ball.vy;
+                }
             }
         }
 
@@ -1092,11 +1102,10 @@
             let pShoot = keys[' '] || window.pendingNetworkShoot;
             let pFire = window.pendingNetworkFire !== undefined ? window.pendingNetworkFire : null;
             let pSteal = window.pendingNetworkSteal !== undefined ? window.pendingNetworkSteal : null;
-            let pLost = window.pendingNetworkLost !== undefined ? window.pendingNetworkLost : null;
             let pGrab = window.pendingNetworkGrab || false;
 
-            window.pendingNetworkShoot = false; window.pendingNetworkFire = null; window.pendingNetworkSteal = null; window.pendingNetworkLost = null; window.pendingNetworkGrab = false;
-            try { await set(ref(db, 'parties/' + partyCode + '/inputs/' + localSessionId), { dx: dx, dy: dy, s: pShoot, fire: pFire, steal: pSteal, lost: pLost, grab: pGrab, ax: aimVector.x, ay: aimVector.y, td: td }); } catch(e){}
+            window.pendingNetworkShoot = false; window.pendingNetworkFire = null; window.pendingNetworkSteal = null; window.pendingNetworkGrab = false;
+            try { await set(ref(db, 'parties/' + partyCode + '/inputs/' + localSessionId), { dx: dx, dy: dy, s: pShoot, fire: pFire, steal: pSteal, grab: pGrab, ax: aimVector.x, ay: aimVector.y, td: td }); } catch(e){}
         }
     }
 
@@ -1278,10 +1287,8 @@
                                         ball.possessedBy = this; opp.stealCooldown = 90; this.invincibleCooldown = 45; lastTouchedBy = this.team; audio.playSteal();
                                         window.pendingNetworkSteal = opp.networkId; 
                                         if (isMultiplayer && !isHost) ball.clientAuthTimer = 45; 
-                                    } else if (ball.possessedBy === this && opp.stealCooldown === 0 && this.invincibleCooldown === 0) {
-                                        ball.possessedBy = opp; this.stealCooldown = 90; opp.invincibleCooldown = 45; lastTouchedBy = opp.team; audio.playSteal();
-                                        window.pendingNetworkLost = opp.networkId;  
-                                    }
+                                    } 
+                                    // Removed client-side auto-loss block! Only Server dictates when a client loses the ball to prevent teleporting jitter.
                                 }
                             }
                         }
@@ -1374,13 +1381,6 @@
                                 ball.possessedBy = this; target.stealCooldown = 90; this.invincibleCooldown = 45; lastTouchedBy = this.team;
                             }
                             inputs.steal = null; 
-                        }
-                        if (inputs.lost !== undefined && inputs.lost !== null) {
-                            let target = entities.find(e => e.networkId === inputs.lost);
-                            if (target && ball && ball.possessedBy === this && this.invincibleCooldown === 0) {
-                                ball.possessedBy = target; this.stealCooldown = 90; target.invincibleCooldown = 45; lastTouchedBy = target.team;
-                            }
-                            inputs.lost = null; 
                         }
                         if (inputs.grab) {
                             if (ball && !ball.possessedBy) { ball.possessedBy = this; this.invincibleCooldown = 45; lastTouchedBy = this.team; }
@@ -1634,8 +1634,17 @@
                     
                     if (this.clientAuthTimer <= 0) {
                         const dx = this.targetX - this.x; const dy = this.targetY - this.y;
-                        this.x += dx * 0.1; this.y += dy * 0.1; 
-                        if (dx*dx + dy*dy > 4900) { this.x = this.targetX; this.y = this.targetY; } 
+                        let dist = Math.sqrt(dx*dx + dy*dy);
+                        let speed = Math.sqrt(this.vx*this.vx + this.vy*this.vy);
+
+                        // Smooth interpolation that respects high-speed trajectories
+                        if (dist > 150) {
+                            this.x = this.targetX; this.y = this.targetY; 
+                        } else if (dist > 10 && speed < 3) {
+                            this.x += dx * 0.1; this.y += dy * 0.1; 
+                        } else if (speed >= 3) {
+                            this.x += dx * 0.02; this.y += dy * 0.02;
+                        }
                     }
                 }
                 
@@ -1857,18 +1866,12 @@
                             e1.x -= nx * overlap * 0.1; e1.y -= ny * overlap * 0.1; e2.x += nx * overlap * 0.1; e2.y += ny * overlap * 0.1;
                             
                             if (ball && e1.team !== e2.team) {
-                                let e1Remote = isMultiplayer && e1.ownerUid !== 'AI' && e1.ownerUid !== localSessionId;
-                                let e2Remote = isMultiplayer && e2.ownerUid !== 'AI' && e2.ownerUid !== localSessionId;
-                                let skipHostSteal = false;
-                                if ((e1Remote && e2.ownerUid === 'AI') || (e2Remote && e1.ownerUid === 'AI')) skipHostSteal = true;
-
-                                if (!skipHostSteal) {
-                                    if (ball.possessedBy === e1 && e2.stealCooldown === 0 && !e2.isGoalie && e1.invincibleCooldown === 0) { 
-                                        ball.possessedBy = e2; e1.stealCooldown = 90; e2.invincibleCooldown = 45; lastTouchedBy = e2.team; audio.playSteal(); 
-                                    } 
-                                    else if (ball.possessedBy === e2 && e1.stealCooldown === 0 && !e1.isGoalie && e2.invincibleCooldown === 0) { 
-                                        ball.possessedBy = e1; e2.stealCooldown = 90; e1.invincibleCooldown = 45; lastTouchedBy = e1.team; audio.playSteal(); 
-                                    }
+                                // Host processes ALL collisions definitively (AI included!)
+                                if (ball.possessedBy === e1 && e2.stealCooldown === 0 && !e2.isGoalie && e1.invincibleCooldown === 0) { 
+                                    ball.possessedBy = e2; e1.stealCooldown = 90; e2.invincibleCooldown = 45; lastTouchedBy = e2.team; audio.playSteal(); 
+                                } 
+                                else if (ball.possessedBy === e2 && e1.stealCooldown === 0 && !e1.isGoalie && e2.invincibleCooldown === 0) { 
+                                    ball.possessedBy = e1; e2.stealCooldown = 90; e1.invincibleCooldown = 45; lastTouchedBy = e1.team; audio.playSteal(); 
                                 }
                             }
                         }
