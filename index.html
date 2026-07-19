@@ -149,12 +149,28 @@
         .joy-base { position: absolute; width: 120px; height: 120px; border-radius: 50%; background: rgba(255, 255, 255, 0.1); border: 2px solid rgba(255,255,255,0.3); transform: translate(-50%, -50%); display: none; pointer-events: none; z-index: 20; }
         .joy-knob { position: absolute; top: 50%; left: 50%; width: 50px; height: 50px; background: rgba(255, 255, 255, 0.6); border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none; }
 
-        .player-row { display: flex; align-items: center; justify-content: space-between; padding: 10px; background: rgba(255,255,255,0.05); margin-bottom: 5px; border-radius: 8px; }
+        /* --- DRAG AND DROP LOBBY CLASSES --- */
+        .draggable-player {
+            background: rgba(255,255,255,0.1); padding: 8px; border-radius: 4px; 
+            margin-bottom: 5px; cursor: grab; font-size: 12px; border: 1px solid rgba(255,255,255,0.2);
+            user-select: none; transition: transform 0.1s;
+        }
+        .draggable-player:active { cursor: grabbing; transform: scale(0.95); }
+        .team-dropzone {
+            background: rgba(0,0,0,0.4); padding: 10px; border-radius: 8px;
+            min-height: 80px; display: flex; flex-direction: column; gap: 4px;
+        }
+        .add-bot-btn {
+            background: rgba(40, 167, 69, 0.3); border: 1px dashed #4CAF50; color: #4CAF50; 
+            padding: 6px; border-radius: 4px; cursor: pointer; font-size: 12px; margin-top: auto; font-weight: bold;
+            display: flex; align-items: center; justify-content: center; width: 100%; transition: background 0.2s;
+        }
+        .add-bot-btn:hover { background: rgba(40, 167, 69, 0.6); color: #fff; }
 
         /* --- CONTAINER QUERIES FOR COMPACT HEIGHTS (LANDSCAPE FIXES) --- */
         @container (max-height: 500px) {
             h1 { font-size: 32px; margin-bottom: 2px; }
-            p.subtitle { display: none; } /* Hide subtext to save space */
+            p.subtitle { display: none; } 
             .mode-grid { grid-template-columns: repeat(3, 1fr); gap: 6px; }
             .mode-grid button { padding: 8px 10px; font-size: 11px; }
             .team-grid { max-height: 60cqh; gap: 8px; }
@@ -264,9 +280,10 @@
                 <p style="text-align:center; color:#a0aabf; font-size:12px; margin-top:0;">Share this code with friends!</p>
                 
                 <h3 style="font-size: 12px; color: #a0aabf; margin: 10px 0 5px 0;">PLAYER POOL:</h3>
-                <div id="mp-pool-list" style="max-height: 200px; overflow-y: auto; font-size: 13px; font-weight: bold; margin-bottom: 10px;">
+                <div id="mp-pool-list" style="max-height: 200px; overflow-y: auto; padding: 5px; border: 1px dashed rgba(255,255,255,0.2); border-radius: 8px; min-height: 50px;" ondragover="event.preventDefault()" ondrop="window.dropToPool(event)">
                     <!-- injected via JS -->
                 </div>
+                <p style="font-size: 9px; color: #a0aabf; margin: 5px 0; text-align: center;">Drag players or click to assign.</p>
                 
                 <div style="margin-top: auto;">
                     <button id="btn-start-mp" class="btn-play hidden" onclick="window.startMpMatch()">START MATCH</button>
@@ -281,12 +298,8 @@
                     <span>Total Teams: <span class="val" id="mp-val-teams">2</span></span>
                     <input type="range" id="mp-slider-teams" min="2" max="8" value="2" onchange="window.handleMpSliderChange()">
                 </div>
-                <div class="setting-row">
-                    <span>Players / Team: <span class="val" id="mp-val-players">1</span></span>
-                    <input type="range" id="mp-slider-players" min="1" max="4" value="1" onchange="window.handleMpSliderChange()">
-                </div>
                 
-                <div id="mp-teams-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; max-height: 200px; overflow-y: auto; padding-right: 5px;">
+                <div id="mp-teams-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; max-height: 250px; overflow-y: auto; padding-right: 5px;">
                     <!-- Injected by JS -->
                 </div>
             </div>
@@ -606,73 +619,25 @@
         try { await set(ref(db, 'users/' + currentUser.uid + '/profile'), { username: username }); } catch(e){}
     }
 
-    function autoAssignPlayers(config, players) {
-        if (!config || !config.teams || !config.assignments) return config;
-        let newConfig = JSON.parse(JSON.stringify(config));
-        let connectedUids = players.map(p => p.uid);
-        let assignedUids = [];
-        let botSlots = [];
-
-        newConfig.teams.forEach(tid => {
-            if (!newConfig.assignments[tid]) newConfig.assignments[tid] = Array(newConfig.pCount).fill('BOT');
-            let slots = newConfig.assignments[tid];
-            while (slots.length < newConfig.pCount) slots.push('BOT');
-            slots.length = newConfig.pCount;
-
-            slots.forEach((uid, idx) => {
-                if (uid === 'BOT') {
-                    botSlots.push({tid, idx});
-                } else if (connectedUids.includes(uid)) {
-                    assignedUids.push(uid);
-                } else {
-                    newConfig.assignments[tid][idx] = 'BOT';
-                    botSlots.push({tid, idx});
-                }
-            });
-        });
-
-        let unassignedUids = connectedUids.filter(u => !assignedUids.includes(u));
-        let humanCount = {};
-        newConfig.teams.forEach(tid => {
-            humanCount[tid] = newConfig.assignments[tid].filter(u => u !== 'BOT').length;
-        });
-
-        unassignedUids.forEach(uid => {
-            botSlots.sort((a, b) => humanCount[a.tid] - humanCount[b.tid]);
-            if (botSlots.length > 0) {
-                let slot = botSlots.shift();
-                newConfig.assignments[slot.tid][slot.idx] = uid;
-                humanCount[slot.tid]++;
-            }
-        });
-
-        return newConfig;
-    }
-
     function getHostMatchConfig() {
         const tCount = parseInt(document.getElementById('mp-slider-teams').value);
-        const pCount = parseInt(document.getElementById('mp-slider-players').value);
-        
         let currentTeams = (partyData && partyData.matchConfig) ? [...partyData.matchConfig.teams] : [playerTeam.id];
         let currentAssign = (partyData && partyData.matchConfig) ? partyData.matchConfig.assignments : {};
 
         while(currentTeams.length < tCount) {
             const pool = TEAMS.filter(t => !currentTeams.includes(t.id));
-            currentTeams.push(pool[Math.floor(Math.random() * pool.length)].id);
+            const newTid = pool[Math.floor(Math.random() * pool.length)].id;
+            currentTeams.push(newTid);
+            currentAssign[newTid] = []; 
         }
-        currentTeams.length = tCount;
+        if (currentTeams.length > tCount) currentTeams.length = tCount;
 
         let newAssign = {};
         currentTeams.forEach(tid => {
-            let arr = currentAssign[tid] ? [...currentAssign[tid]] : [];
-            while(arr.length < pCount) arr.push('BOT');
-            arr.length = pCount;
-            newAssign[tid] = arr;
+            newAssign[tid] = currentAssign[tid] || [];
         });
 
-        let config = { tCount, pCount, teams: currentTeams, assignments: newAssign };
-        if (partyData && partyData.players) config = autoAssignPlayers(config, partyData.players);
-        return config;
+        return { tCount, teams: currentTeams, assignments: newAssign };
     }
 
     window.handleMpSliderChange = async () => {
@@ -681,25 +646,81 @@
         await update(ref(db, 'parties/' + partyCode), { matchConfig: newConfig });
     };
 
-    window.cycleMpSlot = async (teamId, slotIdx) => {
-        if(!isHost || !partyData || !partyData.matchConfig) return;
-        let config = partyData.matchConfig;
-        let currentVal = config.assignments[teamId][slotIdx];
-        
-        let connectedUids = partyData.players.map(p => p.uid);
-        let assignedUids = [];
-        Object.values(config.assignments).forEach(arr => assignedUids.push(...arr.filter(u => u !== 'BOT')));
-        
-        let availableUids = connectedUids.filter(u => !assignedUids.includes(u));
-        
-        let nextVal = 'BOT';
-        if (currentVal === 'BOT') {
-            if (availableUids.length > 0) nextVal = availableUids[0]; 
-        } else {
-            nextVal = 'BOT';
-        }
+    // --- DRAG AND DROP & CLICK ASSIGNMENT LOGIC ---
+    window.dragStart = (e, uid, fromTeam) => {
+        if (!isHost) return;
+        e.dataTransfer.setData('text/plain', JSON.stringify({uid, fromTeam}));
+    };
+    
+    window.dropToPool = async (e) => {
+        if (!isHost || !partyData || !partyData.matchConfig) return;
+        e.preventDefault();
+        try {
+            const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+            if (data.uid === 'BOT') { window.removeBot(data.fromTeam); return; }
+            if (data.fromTeam) {
+                let config = partyData.matchConfig;
+                config.assignments[data.fromTeam] = config.assignments[data.fromTeam].filter(u => u !== data.uid);
+                await update(ref(db, 'parties/' + partyCode), { matchConfig: config });
+            }
+        } catch(err){}
+    };
 
-        config.assignments[teamId][slotIdx] = nextVal;
+    window.dropToTeam = async (e, toTeam) => {
+        if (!isHost || !partyData || !partyData.matchConfig) return;
+        e.preventDefault();
+        try {
+            const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+            let config = partyData.matchConfig;
+            if (!config.assignments[toTeam]) config.assignments[toTeam] = [];
+            if (config.assignments[toTeam].length >= 4) return;
+            
+            if (data.uid === 'BOT' && data.fromTeam) {
+                let idx = config.assignments[data.fromTeam].indexOf('BOT');
+                if (idx > -1) config.assignments[data.fromTeam].splice(idx, 1);
+                config.assignments[toTeam].push('BOT');
+            } else {
+                if (data.fromTeam) {
+                    let idx = config.assignments[data.fromTeam].indexOf(data.uid);
+                    if (idx > -1) config.assignments[data.fromTeam].splice(idx, 1);
+                }
+                config.assignments[toTeam].push(data.uid);
+            }
+            await update(ref(db, 'parties/' + partyCode), { matchConfig: config });
+        } catch(err){}
+    };
+
+    window.addBot = async (teamId) => {
+        if (!isHost || !partyData || !partyData.matchConfig) return;
+        let config = partyData.matchConfig;
+        if (!config.assignments[teamId]) config.assignments[teamId] = [];
+        if (config.assignments[teamId].length >= 4) return;
+        config.assignments[teamId].push('BOT');
+        await update(ref(db, 'parties/' + partyCode), { matchConfig: config });
+    };
+    
+    window.removeBot = async (teamId) => {
+        if (!isHost || !partyData || !partyData.matchConfig) return;
+        let config = partyData.matchConfig;
+        let idx = config.assignments[teamId].indexOf('BOT');
+        if (idx > -1) config.assignments[teamId].splice(idx, 1);
+        await update(ref(db, 'parties/' + partyCode), { matchConfig: config });
+    };
+
+    window.clickPlayer = async (uid, fromTeam) => {
+        if (!isHost || !partyData || !partyData.matchConfig) return;
+        let config = partyData.matchConfig;
+        if (fromTeam) {
+            config.assignments[fromTeam] = config.assignments[fromTeam].filter(u => u !== uid);
+        } else {
+            for (let t of config.teams) {
+                if (!config.assignments[t]) config.assignments[t] = [];
+                if (config.assignments[t].length < 4) {
+                    config.assignments[t].push(uid);
+                    break;
+                }
+            }
+        }
         await update(ref(db, 'parties/' + partyCode), { matchConfig: config });
     };
 
@@ -714,7 +735,7 @@
             await set(ref(db, 'parties/' + partyCode), {
                 host: localSessionId, state: 'lobby',
                 players: [{ uid: localSessionId, name: username }],
-                matchConfig: { tCount: 2, pCount: 1, teams: [playerTeam.id, 'MEX'], assignments: initAssign }
+                matchConfig: { tCount: 2, teams: [playerTeam.id, 'MEX'], assignments: initAssign }
             });
             listenToParty(partyCode);
             showLobbyUI();
@@ -750,16 +771,6 @@
         partyUnsub = onValue(ref(db, 'parties/' + code), (snapshot) => {
             if (snapshot.exists()) {
                 partyData = snapshot.val();
-
-                if (isHost && partyData.state === 'lobby' && partyData.matchConfig && partyData.players) {
-                    let oldConfigStr = JSON.stringify(partyData.matchConfig);
-                    let balancedConfig = autoAssignPlayers(partyData.matchConfig, partyData.players);
-                    if (oldConfigStr !== JSON.stringify(balancedConfig)) {
-                        update(ref(db, 'parties/' + partyCode), { matchConfig: balancedConfig });
-                        return; 
-                    }
-                }
-
                 updateLobbyUI();
 
                 if (partyData.state === 'playing' && gameState === 'lobby') {
@@ -781,12 +792,10 @@
             document.getElementById('btn-start-mp').classList.remove('hidden');
             document.getElementById('lbl-waiting-host').classList.add('hidden');
             document.getElementById('mp-slider-teams').disabled = false;
-            document.getElementById('mp-slider-players').disabled = false;
         } else {
             document.getElementById('btn-start-mp').classList.add('hidden');
             document.getElementById('lbl-waiting-host').classList.remove('hidden');
             document.getElementById('mp-slider-teams').disabled = true;
-            document.getElementById('mp-slider-players').disabled = true;
         }
         gameState = 'lobby';
     }
@@ -803,18 +812,17 @@
         
         if (partyData.players) {
             partyData.players.forEach(p => {
-                let isAssigned = assignedUids.includes(p.uid);
-                poolDiv.innerHTML += `<div style="color: ${isAssigned ? '#4CAF50' : '#a0aabf'}; margin-bottom: 4px;">
-                    ${p.name} ${p.uid === partyData.host ? '👑' : ''} ${isAssigned ? '✓' : ''}
-                </div>`;
+                if (!assignedUids.includes(p.uid)) {
+                    poolDiv.innerHTML += `<div class="draggable-player" draggable="${isHost}" ondragstart="window.dragStart(event, '${p.uid}', null)" ${isHost ? `onclick="window.clickPlayer('${p.uid}', null)"` : ''}>
+                        ${p.name} ${p.uid === partyData.host ? '👑' : ''}
+                    </div>`;
+                }
             });
         }
 
         if (partyData.matchConfig) {
             document.getElementById('mp-slider-teams').value = partyData.matchConfig.tCount;
             document.getElementById('mp-val-teams').innerText = partyData.matchConfig.tCount;
-            document.getElementById('mp-slider-players').value = partyData.matchConfig.pCount;
-            document.getElementById('mp-val-players').innerText = partyData.matchConfig.pCount;
 
             const grid = document.getElementById('mp-teams-grid');
             grid.innerHTML = '';
@@ -825,23 +833,25 @@
                 const slots = partyData.matchConfig.assignments[tid] || [];
                 
                 slots.forEach((uid, idx) => {
-                    let displayName = '🤖 BOT';
-                    let btnStyle = 'background: #2a354d; color: #a0aabf; border: 1px solid rgba(255,255,255,0.1);';
-                    if (uid !== 'BOT') {
+                    if (uid === 'BOT') {
+                        slotsHTML += `<div class="draggable-player" style="border-color: #aaa; color: #aaa;" draggable="${isHost}" ondragstart="window.dragStart(event, 'BOT', '${tid}')">
+                            🤖 BOT ${isHost ? `<span style="float:right; cursor:pointer; color:#ff4444; padding:0 5px;" onclick="window.removeBot('${tid}')">✖</span>` : ''}
+                        </div>`;
+                    } else {
                         const p = partyData.players ? partyData.players.find(x => x.uid === uid) : null;
-                        displayName = p ? p.name : 'Unknown';
-                        btnStyle = 'background: #1c3d1f; color: #fff; border: 1px solid #44ff44;';
+                        const dName = p ? p.name : 'Unknown';
+                        slotsHTML += `<div class="draggable-player" style="border-color: ${team.color1};" draggable="${isHost}" ondragstart="window.dragStart(event, '${uid}', '${tid}')" ${isHost ? `onclick="window.clickPlayer('${uid}', '${tid}')"` : ''}>
+                            ${dName}
+                        </div>`;
                     }
-                    
-                    slotsHTML += `<button style="padding: 6px; font-size: 11px; width: 100%; justify-content: center; ${btnStyle}" 
-                                   ${isHost ? `onclick="window.cycleMpSlot('${tid}', ${idx})"` : 'disabled'}>
-                                   ${displayName}
-                                 </button>`;
                 });
 
-                grid.innerHTML += `<div style="background: rgba(0,0,0,0.4); padding: 10px; border-radius: 8px; border-left: 4px solid ${team.color1};">
-                    <div style="font-size: 12px; font-weight: bold; margin-bottom: 5px; color:${team.color1};">${team.id}</div>
+                let addBotBtn = isHost && slots.length < 4 ? `<button class="add-bot-btn" onclick="window.addBot('${tid}')">+ ADD BOT</button>` : '';
+
+                grid.innerHTML += `<div class="team-dropzone" style="border-left: 4px solid ${team.color1};" ondragover="event.preventDefault()" ondrop="window.dropToTeam(event, '${tid}')">
+                    <div style="font-size: 12px; font-weight: bold; margin-bottom: 5px; color:${team.color1};">${team.id} (${slots.length}/4)</div>
                     <div style="display: flex; flex-direction: column; gap: 4px;">${slotsHTML}</div>
+                    ${addBotBtn}
                 </div>`;
             });
         }
@@ -1038,7 +1048,6 @@
         document.getElementById('top-right-team').classList.remove('hidden');
         if ('ontouchstart' in window || navigator.maxTouchPoints > 0) { setupJoystick(); }
         
-        // Trigger resize to setup dimensions appropriately
         window.dispatchEvent(new Event('resize'));
     }
 
@@ -1077,7 +1086,6 @@
         camera.position.set(0, 480, 450); startRound();
     }
 
-
     // --- CLASSES ---
     class Entity {
         constructor(x, y, size, team, isAI = true, aiType = 'tactical', ownerUid = 'AI', playerName = '') {
@@ -1100,7 +1108,6 @@
             const shirt = new THREE.Mesh(new THREE.CylinderGeometry(5, 5, 10, 12), new THREE.MeshStandardMaterial({ color: this.team.color1, roughness: 0.7 })); shirt.position.y = 13; group.add(shirt);
             const head = new THREE.Mesh(new THREE.BoxGeometry(8, 8, 8), new THREE.MeshStandardMaterial({ color: 0xFFC1CC, roughness: 0.5 })); head.position.y = 22; group.add(head);
 
-            // Add the visible aiming laser path (Hidden by default)
             const aimGeo = new THREE.BoxGeometry(2, 0.1, 60); aimGeo.translate(0, 0, 30);
             const aimMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.6 });
             this.aimLine = new THREE.Mesh(aimGeo, aimMat);
@@ -1224,13 +1231,12 @@
                 }
             }
 
-            // Update Laser Sight while charging
             if (this.isCharging && ball && ball.possessedBy === this) {
                 this.aimLine.visible = true;
-                const scaleZ = 0.5 + (this.chargeAmount / 10) * 1.5; // Stretches out
+                const scaleZ = 0.5 + (this.chargeAmount / 10) * 1.5; 
                 this.aimLine.scale.set(1, 1, scaleZ);
                 const chargeRatio = this.chargeAmount / 10;
-                this.aimLine.material.color.setRGB(1, 1 - chargeRatio, 1 - chargeRatio); // Turns from White to Red
+                this.aimLine.material.color.setRGB(1, 1 - chargeRatio, 1 - chargeRatio); 
             } else {
                 this.aimLine.visible = false;
             }
@@ -1257,12 +1263,11 @@
                         if (inputs.ax !== undefined) { ax = inputs.ax; ay = inputs.ay; }
                         if (inputs.td !== undefined) { td = inputs.td; }
                         
-                        // Handle Remote Client's Explicit Shoot Trigger
                         if (inputs.fire !== undefined && inputs.fire !== null) {
                             if (inputs.ax !== 0 || inputs.ay !== 0) this.facingAngle = Math.atan2(inputs.ay, inputs.ax);
                             shootBall(this, inputs.fire);
                             this.isCharging = false; this.chargeAmount = 0;
-                            inputs.fire = null; // consume
+                            inputs.fire = null; 
                         }
 
                         if (inputs.steal !== undefined && inputs.steal !== null) {
@@ -1296,12 +1301,11 @@
                 this.facingAngle = Math.atan2(ay, ax);
                 this.isAiming = true;
             } else if (this.isCharging && joystickVector.x === 0 && joystickVector.y === 0) {
-                // Apply smooth keyboard turning logic
                 let turnSpeed = 0.035; 
                 if (!isMultiplayer || this.ownerUid === localSessionId) {
                     if (kLeft) this.facingAngle -= turnSpeed;
                     if (kRight) this.facingAngle += turnSpeed;
-                    dx = 0; // Cancel horizontal movement so A/D acts strictly as a turning mechanism
+                    dx = 0; 
                 } else if (isHost && td !== 0) {
                     this.facingAngle += td * turnSpeed;
                 }
@@ -1313,24 +1317,23 @@
             if (dx !== 0 || dy !== 0) {
                 const len = Math.sqrt(dx*dx + dy*dy);
                 let currentSpeed = this.speed; if (ball && ball.possessedBy === this) currentSpeed *= 0.6; 
-                if (this.isCharging) currentSpeed *= 0.7; // Move slightly slower while charging a shot!
+                if (this.isCharging) currentSpeed *= 0.7; 
                 this.vx += (dx / len) * currentSpeed * 0.4; this.vy += (dy / len) * currentSpeed * 0.4;
             }
             
-            // CHARGE AND SHOOT LOGIC
             if (!isMultiplayer || this.ownerUid === localSessionId) {
                 if (shootKey) {
                     if (!this.isCharging) { this.isCharging = true; this.chargeAmount = 0; }
                     if (window.isMobileAiming) {
-                        this.chargeAmount = window.mobileAimMag * 10; // Mobile charge maps to joystick distance
+                        this.chargeAmount = window.mobileAimMag * 10; 
                     } else {
-                        this.chargeAmount += 0.4; // PC charge maps to time held
+                        this.chargeAmount += 0.4; 
                         if (this.chargeAmount > 10) this.chargeAmount = 10;
                     }
                 } else if (!shootKey && this.isCharging) {
                     this.isCharging = false;
                     if (window.cancelShoot) {
-                        window.cancelShoot = false; // Shot canceled!
+                        window.cancelShoot = false; 
                     } else {
                         shootBall(this, this.chargeAmount);
                         if (isMultiplayer && !isHost) window.pendingNetworkFire = this.chargeAmount;
@@ -1338,7 +1341,6 @@
                     this.chargeAmount = 0;
                 }
             } else if (isMultiplayer && isHost && this.ownerUid !== localSessionId) {
-                // Host purely mirrors the client's charging state for visuals
                 if (shootKey) {
                     if (!this.isCharging) { this.isCharging = true; this.chargeAmount = 0; }
                     if (ax !== 0 || ay !== 0) {
@@ -1465,7 +1467,7 @@
         update() {
             if (this.jumpZ > 0 || this.vz !== 0) {
                 this.jumpZ += this.vz;
-                this.vz -= 0.6; // gravity
+                this.vz -= 0.6; 
                 if (this.jumpZ <= 0) {
                     this.jumpZ = 0;
                     this.vz = 0;
@@ -1640,8 +1642,10 @@
         let netId = 0;
         
         if (isMultiplayer && partyData && partyData.matchConfig) {
-            currentPlayersPerTeam = partyData.matchConfig.pCount;
-            activeTeams = partyData.matchConfig.teams.map(id => TEAMS.find(t=>t.id===id)).filter(Boolean);
+            // Find active teams that actually have members assigned
+            activeTeams = partyData.matchConfig.teams.map(id => TEAMS.find(t=>t.id===id))
+                .filter(t => partyData.matchConfig.assignments[t.id] && partyData.matchConfig.assignments[t.id].length > 0);
+            
             for (let tid in partyData.matchConfig.assignments) {
                 if (partyData.matchConfig.assignments[tid].includes(localSessionId)) {
                     playerTeam = TEAMS.find(t => t.id === tid);
@@ -1654,19 +1658,24 @@
             const baseX = (V_WIDTH / (activeTeams.length + 1)) * (teamIdx + 1); const baseY = V_HEIGHT - 80;
             
             let assignedUids = [];
+            let pCount = currentPlayersPerTeam;
+
             if (isMultiplayer && partyData && partyData.matchConfig) {
                 assignedUids = partyData.matchConfig.assignments[team.id] || [];
+                pCount = assignedUids.length; // Use variable player count
             }
 
-            for(let i = 0; i < currentPlayersPerTeam; i++) {
+            for(let i = 0; i < pCount; i++) {
                 let uid, isAI, playerName = '';
                 
                 if (isMultiplayer) {
-                    uid = assignedUids[i] || 'BOT';
+                    uid = assignedUids[i];
                     isAI = (uid === 'BOT');
                     if (!isAI) {
                         const pData = partyData.players.find(p => p.uid === uid);
                         playerName = pData ? pData.name : 'Unknown';
+                    } else {
+                        playerName = 'BOT';
                     }
                 } else {
                     const isPlayer = (team.id === playerTeam.id && i === 0);
@@ -1754,7 +1763,7 @@
                         let dx = e2.x - e1.x; let dy = e2.y - e1.y; let dist = Math.sqrt(dx*dx + dy*dy); let minDist = (e1.size + e2.size)/2;
                         if (dist < minDist && dist > 0) {
                             let overlap = minDist - dist; let nx = dx/dist; let ny = dy/dist;
-                            e1.x -= nx * overlap * 0.1; e1.y -= ny * overlap * 0.1; e2.x += nx * overlap * 0.1; e2.y += ny * overlap * 0.1;
+                            e1.x -= nx * overlap * 0.1; e1.y -= nx * overlap * 0.1; e2.x += nx * overlap * 0.1; e2.y += ny * overlap * 0.1;
                             
                             if (ball && e1.team !== e2.team) {
                                 let e1Remote = isMultiplayer && e1.ownerUid !== 'AI' && e1.ownerUid !== localSessionId;
@@ -1813,7 +1822,6 @@
     let leftTouchId = null; let rightTouchId = null;
     let leftBasePos = {x:0, y:0}; let rightBasePos = {x:0, y:0};
 
-    // Helper to map touches if the CSS rotation is currently active
     function getMappedTouch(t) {
         if (window.innerWidth < window.innerHeight && window.innerWidth <= 768) {
             return {
