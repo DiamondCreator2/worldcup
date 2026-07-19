@@ -179,6 +179,12 @@
             display: flex; align-items: center; justify-content: center; width: 100%; transition: background 0.2s;
         }
         .add-bot-btn:hover { background: rgba(40, 167, 69, 0.6); color: #fff; }
+        .team-name-input {
+            background: transparent; border: none; border-bottom: 1px solid rgba(255,255,255,0.3); 
+            font-weight: bold; font-size: 12px; width: 100%; margin-bottom: 5px; font-family: 'Poppins', sans-serif;
+            transition: 0.2s;
+        }
+        .team-name-input:focus { outline: none; border-color: #FFD700; background: rgba(255,255,255,0.1); }
 
         /* --- CONTAINER QUERIES FOR COMPACT HEIGHTS (LANDSCAPE FIXES) --- */
         @container (max-height: 500px) {
@@ -659,6 +665,7 @@
         const tCount = parseInt(document.getElementById('mp-slider-teams').value);
         let currentTeams = (partyData && partyData.matchConfig) ? [...partyData.matchConfig.teams] : [playerTeam.id];
         let currentAssign = (partyData && partyData.matchConfig) ? partyData.matchConfig.assignments : {};
+        let currentCustomNames = (partyData && partyData.matchConfig && partyData.matchConfig.customNames) ? partyData.matchConfig.customNames : {};
 
         while(currentTeams.length < tCount) {
             const pool = TEAMS.filter(t => !currentTeams.includes(t.id));
@@ -673,13 +680,21 @@
             newAssign[tid] = currentAssign[tid] || [];
         });
 
-        return { tCount, teams: currentTeams, assignments: newAssign };
+        return { tCount, teams: currentTeams, assignments: newAssign, customNames: currentCustomNames };
     }
 
     window.handleMpSliderChange = async () => {
         if(!isHost) return;
         const newConfig = getHostMatchConfig();
         await update(ref(db, 'parties/' + partyCode), { matchConfig: newConfig });
+    };
+
+    window.setTeamName = async (tid, newName) => {
+        if (!isHost || !partyData || !partyData.matchConfig) return;
+        let config = partyData.matchConfig;
+        if (!config.customNames) config.customNames = {};
+        config.customNames[tid] = newName.substring(0, 15);
+        await update(ref(db, 'parties/' + partyCode), { matchConfig: config });
     };
 
     window.dragStart = (e, uid, fromTeam) => {
@@ -719,7 +734,15 @@
                     let idx = config.assignments[data.fromTeam].indexOf(data.uid);
                     if (idx > -1) config.assignments[data.fromTeam].splice(idx, 1);
                 }
+                
+                let currentHumans = (config.assignments[toTeam] || []).filter(u => u !== 'BOT').length;
                 config.assignments[toTeam].push(data.uid);
+                
+                if (currentHumans === 0 && data.uid !== 'BOT') {
+                    if (!config.customNames) config.customNames = {};
+                    let p = partyData.players.find(x => x.uid === data.uid);
+                    if (p) config.customNames[toTeam] = p.name.substring(0, 15);
+                }
             }
             await update(ref(db, 'parties/' + partyCode), { matchConfig: config });
         } catch(err){}
@@ -751,7 +774,13 @@
             for (let t of config.teams) {
                 if (!config.assignments[t]) config.assignments[t] = [];
                 if (config.assignments[t].length < 4) {
+                    let currentHumans = config.assignments[t].filter(u => u !== 'BOT').length;
                     config.assignments[t].push(uid);
+                    if (currentHumans === 0 && uid !== 'BOT') {
+                        if (!config.customNames) config.customNames = {};
+                        let p = partyData.players.find(x => x.uid === uid);
+                        if (p) config.customNames[t] = p.name.substring(0, 15);
+                    }
                     break;
                 }
             }
@@ -765,12 +794,13 @@
         isHost = true; isMultiplayer = true;
         
         let initAssign = {}; initAssign[playerTeam.id] = [localSessionId];
+        let initCustomNames = {}; initCustomNames[playerTeam.id] = username.substring(0, 15);
         
         try {
             await set(ref(db, 'parties/' + partyCode), {
                 host: localSessionId, state: 'lobby',
                 players: [{ uid: localSessionId, name: username }],
-                matchConfig: { tCount: 2, teams: [playerTeam.id, 'MEX'], assignments: initAssign }
+                matchConfig: { tCount: 2, teams: [playerTeam.id, 'MEX'], assignments: initAssign, customNames: initCustomNames }
             });
             listenToParty(partyCode);
             showLobbyUI();
@@ -807,7 +837,6 @@
             if (snapshot.exists()) {
                 partyData = snapshot.val();
                 
-                // HOST MIGRATION: If host leaves, another connected player claims host instantly!
                 if (partyData.host === localSessionId && !isHost) {
                     isHost = true;
                     listenToClientInputs();
@@ -822,7 +851,7 @@
                     syncNetworkState(partyData.gameState);
                 }
             } else {
-                window.leaveParty(); // Party was deleted
+                window.leaveParty(); 
             }
         });
     }
@@ -891,8 +920,13 @@
 
                 let addBotBtn = isHost && slots.length < 4 ? `<button class="add-bot-btn" onclick="window.addBot('${tid}')">+ ADD BOT</button>` : '';
 
+                let cName = partyData.matchConfig.customNames && partyData.matchConfig.customNames[tid] ? partyData.matchConfig.customNames[tid] : team.name;
+                let headerHTML = isHost ? 
+                    `<input type="text" class="team-name-input" style="color:${team.color1};" value="${cName}" onchange="window.setTeamName('${tid}', this.value)" />` :
+                    `<div style="font-size: 12px; font-weight: bold; margin-bottom: 5px; color:${team.color1};">${cName}</div>`;
+
                 grid.innerHTML += `<div class="team-dropzone" style="border-left: 4px solid ${team.color1};" ondragover="event.preventDefault()" ondrop="window.dropToTeam(event, '${tid}')">
-                    <div style="font-size: 12px; font-weight: bold; margin-bottom: 5px; color:${team.color1};">${team.id} (${slots.length}/4)</div>
+                    ${headerHTML}
                     <div style="display: flex; flex-direction: column; gap: 4px;">${slotsHTML}</div>
                     ${addBotBtn}
                 </div>`;
@@ -904,7 +938,6 @@
         if (partyCode && partyData && isMultiplayer) {
             let newPlayers = partyData.players.filter(p => p.uid !== localSessionId);
             let updates = { players: newPlayers };
-            // If the host leaves, promote the next player!
             if (isHost && newPlayers.length > 0) {
                 updates.host = newPlayers[0].uid;
             }
@@ -923,6 +956,16 @@
         try { await update(ref(db, 'parties/' + partyCode), { state: 'playing' }); } catch(e){}
     };
 
+    const getTeamWithCustomName = (id) => {
+        let baseTeam = TEAMS.find(t => t.id === id);
+        if (!baseTeam) return null;
+        let t = {...baseTeam}; 
+        if (isMultiplayer && partyData && partyData.matchConfig && partyData.matchConfig.customNames && partyData.matchConfig.customNames[id]) {
+            t.name = partyData.matchConfig.customNames[id];
+        }
+        return t;
+    };
+
     function setupMultiplayerMatch() {
         document.getElementById('lobby-menu').classList.add('hidden');
         document.getElementById('leaderboard').classList.remove('hidden');
@@ -930,14 +973,13 @@
         clearEntities();
         safeTeams = []; eliminatedTeams = []; tournamentRound = 1; activeTeams = [];
         
-        // Initialize player teams correctly from Match Config ONCE at the start of the match
         if (partyData && partyData.matchConfig) {
-            activeTeams = partyData.matchConfig.teams.map(id => TEAMS.find(t=>t.id===id))
+            activeTeams = partyData.matchConfig.teams.map(id => getTeamWithCustomName(id))
                 .filter(t => partyData.matchConfig.assignments[t.id] && partyData.matchConfig.assignments[t.id].length > 0);
             
             for (let tid in partyData.matchConfig.assignments) {
                 if (partyData.matchConfig.assignments[tid].includes(localSessionId)) {
-                    playerTeam = TEAMS.find(t => t.id === tid);
+                    playerTeam = activeTeams.find(t => t.id === tid);
                     break;
                 }
             }
@@ -974,11 +1016,11 @@
     function syncNetworkState(state) {
         if(!state) return;
         
-        if (state.at) activeTeams = state.at.map(id => TEAMS.find(t => t.id === id)).filter(Boolean);
-        if (state.st) safeTeams = state.st.map(id => TEAMS.find(t => t.id === id)).filter(Boolean);
-        if (state.et) eliminatedTeams = state.et.map(id => TEAMS.find(t => t.id === id)).filter(Boolean);
+        if (state.at) activeTeams = state.at.map(id => getTeamWithCustomName(id)).filter(Boolean);
+        if (state.st) safeTeams = state.st.map(id => getTeamWithCustomName(id)).filter(Boolean);
+        if (state.et) eliminatedTeams = state.et.map(id => getTeamWithCustomName(id)).filter(Boolean);
         if (state.rnd) tournamentRound = state.rnd;
-        if (state.ltb) lastTouchedBy = TEAMS.find(t => t.id === state.ltb);
+        if (state.ltb) lastTouchedBy = getTeamWithCustomName(state.ltb);
 
         if (state.ann && state.ann.id !== lastAnnId) {
             lastAnnId = state.ann.id;
@@ -994,11 +1036,9 @@
             startRound(); 
         }
 
-        // Absolute Server Authority over Ball Possession (With Client-Side Protection)
         if (state.bp !== undefined && ball) {
             if (state.bp === null) {
                 if (ball.clientAuthTimer > 0) {
-                    // Protect local prediction! We just shot it, ignore older null packets from server
                 } else if (ball.possessedBy && ball.possessedBy.ownerUid === localSessionId) {
                     const bx = state.ball.x - ball.possessedBy.x; const by = state.ball.y - ball.possessedBy.y;
                     if (bx*bx + by*by > 900) ball.possessedBy = null; 
@@ -1009,7 +1049,6 @@
                 const possessor = entities.find(e => e.networkId === state.bp);
                 if (possessor) {
                     if (ball.clientAuthTimer > 0 && possessor.ownerUid !== localSessionId && ball.possessedBy && ball.possessedBy.ownerUid === localSessionId) {
-                        // Protect local prediction! We just stole it, ignore older host packets giving it back
                     } else {
                         if (possessor.ownerUid !== localSessionId) ball.possessedBy = possessor;
                         else if (!ball.possessedBy && ball.possessionCooldown === 0) ball.possessedBy = possessor;
@@ -1021,7 +1060,6 @@
         if(state.ball && ball) { 
             ball.targetX = state.ball.x; ball.targetY = state.ball.y; 
             if (ball.clientAuthTimer <= 0 && state.ball.vx !== undefined && state.ball.vy !== undefined) {
-                // Trust server velocity ONLY if we aren't overriding it locally with a fresh shot!
                 ball.vx = state.ball.vx; ball.vy = state.ball.vy;
             }
         }
@@ -1248,11 +1286,11 @@
 
                                 if (ball && this.team !== opp.team && !this.isGoalie && !opp.isGoalie) {
                                     if (ball.possessedBy === opp && this.stealCooldown === 0 && opp.invincibleCooldown === 0) {
-                                        ball.possessedBy = this; opp.stealCooldown = 60; this.invincibleCooldown = 18; lastTouchedBy = this.team; audio.playSteal();
+                                        ball.possessedBy = this; opp.stealCooldown = 90; this.invincibleCooldown = 45; lastTouchedBy = this.team; audio.playSteal();
                                         window.pendingNetworkSteal = opp.networkId; 
-                                        if (isMultiplayer && !isHost) ball.clientAuthTimer = 30; // Protect local steal prediction!
+                                        if (isMultiplayer && !isHost) ball.clientAuthTimer = 45; 
                                     } else if (ball.possessedBy === this && opp.stealCooldown === 0 && this.invincibleCooldown === 0) {
-                                        ball.possessedBy = opp; this.stealCooldown = 60; opp.invincibleCooldown = 18; lastTouchedBy = opp.team; audio.playSteal();
+                                        ball.possessedBy = opp; this.stealCooldown = 90; opp.invincibleCooldown = 45; lastTouchedBy = opp.team; audio.playSteal();
                                         window.pendingNetworkLost = opp.networkId;  
                                     }
                                 }
@@ -1344,19 +1382,19 @@
                         if (inputs.steal !== undefined && inputs.steal !== null) {
                             let target = entities.find(e => e.networkId === inputs.steal);
                             if (target && ball && ball.possessedBy === target && target.invincibleCooldown === 0) {
-                                ball.possessedBy = this; target.stealCooldown = 60; this.invincibleCooldown = 18; lastTouchedBy = this.team;
+                                ball.possessedBy = this; target.stealCooldown = 90; this.invincibleCooldown = 45; lastTouchedBy = this.team;
                             }
                             inputs.steal = null; 
                         }
                         if (inputs.lost !== undefined && inputs.lost !== null) {
                             let target = entities.find(e => e.networkId === inputs.lost);
                             if (target && ball && ball.possessedBy === this && this.invincibleCooldown === 0) {
-                                ball.possessedBy = target; this.stealCooldown = 60; target.invincibleCooldown = 18; lastTouchedBy = target.team;
+                                ball.possessedBy = target; this.stealCooldown = 90; target.invincibleCooldown = 45; lastTouchedBy = target.team;
                             }
                             inputs.lost = null; 
                         }
                         if (inputs.grab) {
-                            if (ball && !ball.possessedBy) { ball.possessedBy = this; this.invincibleCooldown = 18; lastTouchedBy = this.team; }
+                            if (ball && !ball.possessedBy) { ball.possessedBy = this; this.invincibleCooldown = 45; lastTouchedBy = this.team; }
                             inputs.grab = false; 
                         }
                     }
@@ -1392,7 +1430,6 @@
                 this.vx += (dx / len) * currentSpeed * 0.4; this.vy += (dy / len) * currentSpeed * 0.4;
             }
             
-            // CHARGE AND SHOOT LOGIC
             if (!isMultiplayer || this.ownerUid === localSessionId) {
                 if (shootKey) {
                     if (!this.isCharging) { this.isCharging = true; this.chargeAmount = 0; }
@@ -1589,7 +1626,7 @@
         constructor(x, y) {
             this.x = x; this.y = y; this.radius = 6; this.vx = 0; this.vy = 0; this.friction = 0.96;
             this.possessedBy = null; this.possessionCooldown = 0; this.targetX = x; this.targetY = y;
-            this.clientAuthTimer = 0; // NEW: Protects local client physics from being overwritten by older server packets
+            this.clientAuthTimer = 0; 
             this.mesh = new THREE.Mesh(new THREE.IcosahedronGeometry(this.radius, 1), new THREE.MeshLambertMaterial({ color: 0xffffff })); this.mesh.castShadow = true; scene.add(this.mesh); this.updateMeshPosition();
         }
         update() {
@@ -1608,8 +1645,8 @@
                     
                     if (this.clientAuthTimer <= 0) {
                         const dx = this.targetX - this.x; const dy = this.targetY - this.y;
-                        this.x += dx * 0.1; this.y += dy * 0.1; // Smooth correction to server trajectory
-                        if (dx*dx + dy*dy > 4900) { this.x = this.targetX; this.y = this.targetY; } // Snap if wildly out of sync
+                        this.x += dx * 0.1; this.y += dy * 0.1; 
+                        if (dx*dx + dy*dy > 4900) { this.x = this.targetX; this.y = this.targetY; } 
                     }
                 }
                 
@@ -1655,9 +1692,9 @@
 
     function passBall(entity) {
         if (!ball || ball.possessedBy !== entity) return;
-        ball.possessedBy = null; ball.possessionCooldown = 20; const passPower = 6.5; 
+        ball.possessedBy = null; ball.possessionCooldown = 30; const passPower = 6.5; 
         ball.vx = Math.cos(entity.facingAngle) * passPower + entity.vx * 0.5; ball.vy = Math.sin(entity.facingAngle) * passPower + entity.vy * 0.5; audio.playShoot();
-        if (isMultiplayer && !isHost && entity.ownerUid === localSessionId) ball.clientAuthTimer = 30;
+        if (isMultiplayer && !isHost && entity.ownerUid === localSessionId) ball.clientAuthTimer = 45;
     }
 
     function shootBall(entity, bonusPower = 0) {
@@ -1674,7 +1711,7 @@
                 }
             }
         }
-        ball.possessedBy = null; ball.possessionCooldown = 20;
+        ball.possessedBy = null; ball.possessionCooldown = 30;
 
         if (bestTeammate) {
             const targetX = bestTeammate.x + bestTeammate.vx * 15; const targetY = bestTeammate.y + bestTeammate.vy * 15;
@@ -1682,11 +1719,11 @@
             const passAngle = Math.atan2(dy, dx); 
             const passPower = Math.min(9.5, Math.max(6.0, dist * 0.04)) + (bonusPower * 0.3); 
             ball.vx = Math.cos(passAngle) * passPower + entity.vx * 0.3; ball.vy = Math.sin(passAngle) * passPower + entity.vy * 0.3; audio.playShoot();
-            if (isMultiplayer && !isHost && entity.ownerUid === localSessionId) ball.clientAuthTimer = 30; // Protect local trajectory
+            if (isMultiplayer && !isHost && entity.ownerUid === localSessionId) ball.clientAuthTimer = 45; 
         } else {
             const shotPower = 8.5 + (bonusPower * 0.6); 
             ball.vx = Math.cos(entity.facingAngle) * shotPower + entity.vx * 0.5; ball.vy = Math.sin(entity.facingAngle) * shotPower + entity.vy * 0.5; audio.playShoot();
-            if (isMultiplayer && !isHost && entity.ownerUid === localSessionId) ball.clientAuthTimer = 30; // Protect local trajectory
+            if (isMultiplayer && !isHost && entity.ownerUid === localSessionId) ball.clientAuthTimer = 45; 
         }
     }
 
@@ -1698,11 +1735,11 @@
         if (!entity.isGoalie) { 
             lastTouchedBy = entity.team; 
             ball.possessedBy = entity; 
-            entity.invincibleCooldown = 18; 
+            entity.invincibleCooldown = 45; 
             audio.playDribble(); 
             if (isMultiplayer && !isHost && entity.ownerUid === localSessionId) {
                 window.pendingNetworkGrab = true;
-                ball.clientAuthTimer = 30; // Protect local possession claim
+                ball.clientAuthTimer = 45; 
             }
         } 
         else { 
@@ -1802,12 +1839,12 @@
         const layer = document.getElementById('announcement-layer'); const mainEl = document.getElementById('announcement-main'); const subEl = document.getElementById('announcement-sub'); mainEl.innerText = mainText; mainEl.style.color = mainColor; subEl.innerText = subText; layer.classList.remove('hidden', 'fade-out'); layer.classList.add('pop-in'); if (duration > 0) { setTimeout(() => { layer.classList.remove('pop-in'); layer.classList.add('fade-out'); setTimeout(() => layer.classList.add('hidden'), 500); }, duration); } 
     }
     
-    function updateLeaderboard() { const list = document.getElementById('leaderboard-list'); list.innerHTML = ''; let sortedTeams = []; safeTeams.forEach(t => sortedTeams.push({team: t, status: 'SAFE', class: 'team-safe'})); activeTeams.forEach(t => sortedTeams.push({team: t, status: 'PLAY', class: 'team-playing'})); eliminatedTeams.forEach(t => sortedTeams.push({team: t, status: 'OUT', class: 'team-eliminated'})); sortedTeams.forEach(item => { const li = document.createElement('li'); li.className = `lb-team ${item.class}`; li.innerHTML = `<div class="lb-color" style="background-color: ${item.team.color1};"></div><span>${item.team.id}</span><span class="lb-status">${item.status}</span>`; list.appendChild(li); }); }
+    function updateLeaderboard() { const list = document.getElementById('leaderboard-list'); list.innerHTML = ''; let sortedTeams = []; safeTeams.forEach(t => sortedTeams.push({team: t, status: 'SAFE', class: 'team-safe'})); activeTeams.forEach(t => sortedTeams.push({team: t, status: 'PLAY', class: 'team-playing'})); eliminatedTeams.forEach(t => sortedTeams.push({team: t, status: 'OUT', class: 'team-eliminated'})); sortedTeams.forEach(item => { const li = document.createElement('li'); li.className = `lb-team ${item.class}`; li.innerHTML = `<div class="lb-color" style="background-color: ${item.team.color1};"></div><span>${item.team.name}</span><span class="lb-status">${item.status}</span>`; list.appendChild(li); }); }
     
     function triggerGameOver(winnerTeam, fromNetwork = false) { 
         if (isMultiplayer && !isHost && !fromNetwork) return;
         gameState = 'gameover'; 
-        if (isMultiplayer && isHost) pushNetworkState(); // Force final game-over state to clients!
+        if (isMultiplayer && isHost) pushNetworkState(); 
         const winnerScreen = document.getElementById('game-over-screen'); winnerScreen.classList.remove('hidden'); document.getElementById('winner-text').innerText = `${winnerTeam.name} WINS!`; document.getElementById('winner-text').style.color = winnerTeam.color1; document.getElementById('scorer-text').innerText = (playerTeam && winnerTeam.id === playerTeam.id) ? "You are the ultimate champion!" : "You were eliminated."; 
     }
     
@@ -1838,10 +1875,10 @@
 
                                 if (!skipHostSteal) {
                                     if (ball.possessedBy === e1 && e2.stealCooldown === 0 && !e2.isGoalie && e1.invincibleCooldown === 0) { 
-                                        ball.possessedBy = e2; e1.stealCooldown = 60; e2.invincibleCooldown = 18; lastTouchedBy = e2.team; audio.playSteal(); 
+                                        ball.possessedBy = e2; e1.stealCooldown = 90; e2.invincibleCooldown = 45; lastTouchedBy = e2.team; audio.playSteal(); 
                                     } 
                                     else if (ball.possessedBy === e2 && e1.stealCooldown === 0 && !e1.isGoalie && e2.invincibleCooldown === 0) { 
-                                        ball.possessedBy = e1; e2.stealCooldown = 60; e1.invincibleCooldown = 18; lastTouchedBy = e1.team; audio.playSteal(); 
+                                        ball.possessedBy = e1; e2.stealCooldown = 90; e1.invincibleCooldown = 45; lastTouchedBy = e1.team; audio.playSteal(); 
                                     }
                                 }
                             }
@@ -1869,10 +1906,7 @@
             let distOffset = 0;
 
             if (ball && localPlayer) {
-                // Focus on whichever is further down the field (closer to the goal at y=0)
                 focusY = Math.min(ball.y, localPlayer.y);
-                
-                // Calculate distance between player and ball to dynamically pull the camera back
                 let dx = ball.x - localPlayer.x;
                 let dy = ball.y - localPlayer.y;
                 distOffset = Math.min(250, Math.sqrt(dx*dx + dy*dy) * 0.6);
@@ -1884,11 +1918,9 @@
 
             if (ball || localPlayer) {
                 const t = Math.max(0, Math.min(1, focusY / V_HEIGHT)); 
-                
-                // Detect mobile/touch devices and pull the camera dramatically closer
                 let isTouch = ('ontouchstart' in window || navigator.maxTouchPoints > 0);
-                let mobileZoomY = isTouch ? -130 : 0; // Drops camera closer to the ground
-                let mobileZoomZ = isTouch ? -120 : 0; // Pushes camera forward
+                let mobileZoomY = isTouch ? -130 : 0; 
+                let mobileZoomZ = isTouch ? -120 : 0; 
                 
                 targetCamY = 220 + (t * 200) + distOffset + mobileZoomY; 
                 targetCamZ = 180 + (t * 200) + (distOffset * 0.8) + mobileZoomZ; 
@@ -1940,7 +1972,7 @@
         
         document.addEventListener('touchstart', (e) => {
             if (gameState !== 'playing' && gameState !== 'scored') return;
-            if (e.target.tagName.toLowerCase() === 'button') return;
+            if (e.target.tagName.toLowerCase() === 'button' || e.target.tagName.toLowerCase() === 'input') return;
             if (e.target === renderer.domElement) e.preventDefault(); 
             
             for(let i=0; i<e.changedTouches.length; i++) {
